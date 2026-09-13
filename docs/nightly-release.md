@@ -63,4 +63,4 @@ gh workflow run nightly.yml
 
 - [Nightly workflow](https://github.com/coccinella-labs/harper/actions?q=workflow%3Anightly)
 - [Draft releases](https://github.com/coccinella-labs/harper/releases?q=nightly)
-- [Reusable workflow](https://github.com/libnudget/rust-nightly)
+- [Reusable workflow](https://github.com/coccinella-labs/rust-nightly)
