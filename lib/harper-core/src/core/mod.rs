@@ -27,6 +27,7 @@ pub mod models;
 pub mod native_shell;
 pub mod plan;
 pub mod plan_events;
+pub mod tool_call;
 
 /// Supported AI API providers
 #[derive(Debug, Clone, Copy)]

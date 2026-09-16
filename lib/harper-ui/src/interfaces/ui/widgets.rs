@@ -2420,7 +2420,9 @@ fn loop_state_lines(
             PlanLoopOutcome::WaitingApproval | PlanLoopOutcome::RetryPending => {
                 Color::Rgb(245, 158, 11)
             }
-            PlanLoopOutcome::Failed | PlanLoopOutcome::ReplanRequired => Color::Rgb(239, 68, 68),
+            PlanLoopOutcome::Failed
+            | PlanLoopOutcome::ReplanRequired
+            | PlanLoopOutcome::BackendUnavailable => Color::Rgb(239, 68, 68),
         };
         lines.push(Line::styled(
             format!("last outcome: {}", format_loop_outcome(outcome)),
@@ -2467,6 +2469,7 @@ fn format_loop_outcome(outcome: &PlanLoopOutcome) -> &'static str {
         PlanLoopOutcome::RetryPending => "retry suggested",
         PlanLoopOutcome::ReplanRequired => "replan required",
         PlanLoopOutcome::Responded => "responded",
+        PlanLoopOutcome::BackendUnavailable => "backend unavailable",
     }
 }
 

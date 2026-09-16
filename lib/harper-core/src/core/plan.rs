@@ -64,6 +64,7 @@ pub enum PlanLoopOutcome {
     RetryPending,
     ReplanRequired,
     Responded,
+    BackendUnavailable,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
