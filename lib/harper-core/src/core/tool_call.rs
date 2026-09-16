@@ -15,6 +15,7 @@
 use crate::core::ApiProvider;
 use serde::Serialize;
 use serde_json::Value;
+use std::path::PathBuf;
 
 /// The source provider that produced this tool call.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
@@ -61,6 +62,141 @@ impl ToolCall {
     pub fn dedupe_key(&self) -> String {
         format!("{}:{}", self.name, canonicalize_value(&self.arguments))
     }
+
+    /// Reconstruct the string form expected by downstream tools and gate helpers.
+    pub fn to_raw_string(&self) -> String {
+        match self.source {
+            ToolCallSource::OpenAi
+            | ToolCallSource::Sambanova
+            | ToolCallSource::OpenRouter
+            | ToolCallSource::Zen
+            | ToolCallSource::Ollama => {
+                let args_ser =
+                    serde_json::to_string(&self.arguments).unwrap_or_else(|_| "{}".into());
+                let args_json_str =
+                    serde_json::to_string(&args_ser).unwrap_or_else(|_| "\"{}\"".into());
+                let id_part = self
+                    .id
+                    .as_ref()
+                    .map(|id| format!("\"id\":\"{}\",", id))
+                    .unwrap_or_default();
+                format!(
+                    "[{{{}\"function\":{{\"name\":\"{}\",\"arguments\":{}}}}}]",
+                    id_part, self.name, args_json_str
+                )
+            }
+            ToolCallSource::Gemini => serde_json::json!({
+                "functionCall": {
+                    "name": self.name,
+                    "args": self.arguments
+                }
+            })
+            .to_string(),
+            ToolCallSource::Mcp => serde_json::json!({
+                "mcp_tool": self.name,
+                "arguments": self.arguments
+            })
+            .to_string(),
+            ToolCallSource::BracketLegacy => {
+                let arg_str = match self.name.as_str() {
+                    "run_command" => self
+                        .arguments
+                        .get("command")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(""),
+                    "read_file" | "write_file" => self
+                        .arguments
+                        .get("path")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(""),
+                    "search_replace" => self
+                        .arguments
+                        .get("query")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(""),
+                    "search" => self
+                        .arguments
+                        .get("query")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or(""),
+                    _ => "",
+                };
+                format!("[{} {}]", self.name.to_uppercase(), arg_str)
+            }
+        }
+    }
+
+    /// For run_command calls, normalize the command argument in place.
+    pub fn normalize_run_command(&mut self) {
+        if self.name != "run_command" {
+            return;
+        }
+        let Some(command) = self.arguments.get("command").and_then(|v| v.as_str()) else {
+            return;
+        };
+        let normalized = normalize_run_command_candidate(command);
+        if normalized != command {
+            if let Some(obj) = self.arguments.as_object_mut() {
+                obj.insert("command".into(), Value::String(normalized));
+            }
+        }
+    }
+
+    /// Extract target file paths from the tool call arguments.
+    pub fn target_paths(&self) -> Vec<PathBuf> {
+        match self.name.as_str() {
+            "read_file" | "write_file" | "search_replace" => self
+                .arguments
+                .get("path")
+                .or_else(|| self.arguments.get("filePath"))
+                .and_then(|v| v.as_str())
+                .map(|path| vec![PathBuf::from(path)])
+                .unwrap_or_default(),
+            _ => Vec::new(),
+        }
+    }
+}
+
+fn normalize_run_command_candidate(command: &str) -> String {
+    let mut candidate = command.trim();
+    if let Some(stripped) = candidate.strip_prefix("the ") {
+        candidate = stripped.trim();
+    }
+    if let Some(stripped) = candidate.strip_suffix(" command") {
+        candidate = stripped.trim();
+    }
+    candidate = candidate.trim_matches(|c: char| matches!(c, '"' | '\''));
+    candidate = candidate.trim_end_matches(['.', ',', ';', ':']);
+    let candidate = trim_run_command_suffixes(candidate);
+    match candidate.to_ascii_lowercase().as_str() {
+        "git status" => "git status".to_string(),
+        "git diff" => "git diff".to_string(),
+        "clear" => "clear".to_string(),
+        "pwd" => "pwd".to_string(),
+        "ls" => "ls".to_string(),
+        "date" => "date".to_string(),
+        "whoami" => "whoami".to_string(),
+        _ => candidate.to_string(),
+    }
+}
+
+fn trim_run_command_suffixes(candidate: &str) -> &str {
+    let lowered = candidate.to_ascii_lowercase();
+    for suffix in [
+        " and summarize it",
+        " and summarize",
+        " then summarize it",
+        " then summarize",
+        " and explain it",
+        " and explain",
+        " and show me",
+    ] {
+        if lowered.ends_with(suffix) {
+            let idx = candidate.len() - suffix.len();
+            return candidate[..idx].trim();
+        }
+    }
+    candidate
 }
 
 /// Canonicalize a JSON value for dedup (sorted object keys, stable formatting).
@@ -487,5 +623,92 @@ mod tests {
         assert!(key.contains("\"b\":"));
         // Keys within nested object should be sorted too
         assert!(key.contains("\"a\":2,\"z\":1"));
+    }
+
+    #[test]
+    fn to_raw_string_openai() {
+        let tc = ToolCall {
+            id: Some("call_abc".into()),
+            name: "run_command".into(),
+            arguments: json!({"command": "ls"}),
+            source: ToolCallSource::OpenAi,
+        };
+        let raw = tc.to_raw_string();
+        assert!(raw.contains("\"id\":\"call_abc\""));
+        assert!(raw.contains("\"name\":\"run_command\""));
+        let parsed: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        let arr = parsed.as_array().unwrap();
+        let func = arr[0].get("function").unwrap();
+        assert_eq!(func.get("name").unwrap().as_str(), Some("run_command"));
+        assert_eq!(
+            func.get("arguments").unwrap().as_str(),
+            Some("{\"command\":\"ls\"}")
+        );
+    }
+
+    #[test]
+    fn to_raw_string_gemini() {
+        let tc = ToolCall {
+            id: None,
+            name: "read_file".into(),
+            arguments: json!({"path": "/tmp/hello.txt"}),
+            source: ToolCallSource::Gemini,
+        };
+        let raw = tc.to_raw_string();
+        let parsed: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        let fc = parsed.get("functionCall").unwrap();
+        assert_eq!(fc.get("name").unwrap().as_str(), Some("read_file"));
+        assert_eq!(
+            fc.get("args").unwrap().get("path").unwrap().as_str(),
+            Some("/tmp/hello.txt")
+        );
+    }
+
+    #[test]
+    fn to_raw_string_bracket_legacy() {
+        let tc = ToolCall {
+            id: None,
+            name: "run_command".into(),
+            arguments: json!({"command": "git status"}),
+            source: ToolCallSource::BracketLegacy,
+        };
+        let raw = tc.to_raw_string();
+        assert_eq!(raw, "[RUN_COMMAND git status]");
+    }
+
+    #[test]
+    fn normalize_run_command_strips_article_and_suffix() {
+        let mut tc = ToolCall {
+            id: None,
+            name: "run_command".into(),
+            arguments: json!({"command": "the git status"}),
+            source: ToolCallSource::OpenAi,
+        };
+        tc.normalize_run_command();
+        assert_eq!(tc.arguments["command"], "git status");
+    }
+
+    #[test]
+    fn normalize_run_command_noop_for_correct_command() {
+        let mut tc = ToolCall {
+            id: None,
+            name: "run_command".into(),
+            arguments: json!({"command": "ls"}),
+            source: ToolCallSource::OpenAi,
+        };
+        tc.normalize_run_command();
+        assert_eq!(tc.arguments["command"], "ls");
+    }
+
+    #[test]
+    fn normalize_run_command_noop_for_non_run_command() {
+        let mut tc = ToolCall {
+            id: None,
+            name: "read_file".into(),
+            arguments: json!({"path": "foo.txt"}),
+            source: ToolCallSource::OpenAi,
+        };
+        tc.normalize_run_command();
+        assert_eq!(tc.arguments["path"], "foo.txt");
     }
 }

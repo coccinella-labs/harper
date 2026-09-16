@@ -38,12 +38,12 @@ pub mod parsing;
 
 use crate::core::constants::tools;
 use crate::core::error::{HarperError, HarperResult};
+use crate::core::tool_call::{ToolCall, ToolCallSource};
 use crate::core::{ApiConfig, Message};
 use crate::runtime::config::ExecPolicyConfig;
 use crate::tools::shell::CommandAuditContext;
 use reqwest::Client;
 use rusqlite::Connection;
-use serde_json::json;
 use std::path::PathBuf;
 use turul_mcp_client::{ContentBlock, McpClient};
 
@@ -159,90 +159,51 @@ impl<'a> ToolService<'a> {
         &mut self,
         client: &Client,
         history: &[Message],
+        tool_call: &ToolCall,
+        web_search_enabled: bool,
+    ) -> Result<Option<(String, String)>, HarperError> {
+        let raw_response = tool_call.to_raw_string();
+
+        // MCP tool call
+        if tool_call.name.starts_with("mcp__") {
+            return self
+                .handle_mcp_tool_call(
+                    client,
+                    history,
+                    &tool_call.name,
+                    &tool_call.arguments,
+                    &raw_response,
+                )
+                .await;
+        }
+
+        // Legacy bracket format preserves the raw bracket string downstream
+        if matches!(tool_call.source, ToolCallSource::BracketLegacy) {
+            return self
+                .handle_bracket_tool_use(client, history, &raw_response, web_search_enabled)
+                .await;
+        }
+
+        // Structured JSON tool call: dispatch directly on name and args
+        self.handle_regular_json_tool(
+            client,
+            history,
+            &tool_call.name,
+            &tool_call.arguments,
+            &raw_response,
+            web_search_enabled,
+        )
+        .await
+    }
+
+    /// Handle legacy bracket-format tool calls.
+    async fn handle_bracket_tool_use(
+        &mut self,
+        client: &Client,
+        history: &[Message],
         response: &str,
         web_search_enabled: bool,
     ) -> Result<Option<(String, String)>, HarperError> {
-        // Try to parse as JSON tool call first
-        if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(response) {
-            // Case 1: OpenAI tool_calls format (array of objects)
-            if let Some(tool_calls) = json_value.as_array() {
-                if let Some(first_call) = tool_calls.first() {
-                    let function = first_call.get("function");
-                    let tool_name = function
-                        .and_then(|f| f.get("name"))
-                        .and_then(|v| v.as_str());
-
-                    if let Some(name) = tool_name {
-                        // Extract arguments - OpenAI uses a JSON string for arguments
-                        let args_val = function.and_then(|f| f.get("arguments"));
-                        let args_json = if let Some(serde_json::Value::String(s)) = args_val {
-                            serde_json::from_str::<serde_json::Value>(s).unwrap_or(json!({}))
-                        } else {
-                            args_val.cloned().unwrap_or(json!({}))
-                        };
-
-                        // Check if it's an MCP tool
-                        if name.starts_with("mcp__") {
-                            return self
-                                .handle_mcp_tool_call(client, history, name, &args_json, response)
-                                .await;
-                        }
-
-                        return self
-                            .handle_regular_json_tool(
-                                client,
-                                history,
-                                name,
-                                &args_json,
-                                response,
-                                web_search_enabled,
-                            )
-                            .await;
-                    }
-                }
-            }
-
-            // Case 2: Gemini or custom single-object format
-            // Check for MCP tool call first
-            if let Some(mcp_tool_name) = json_value.get("mcp_tool").and_then(|v| v.as_str()) {
-                let args = json_value.get("arguments").cloned().unwrap_or(json!({}));
-                return self
-                    .handle_mcp_tool_call(client, history, mcp_tool_name, &args, response)
-                    .await;
-            }
-
-            // Regular tool call - check both "tool" and "name"
-            let tool_name = json_value
-                .get("tool")
-                .and_then(|v| v.as_str())
-                .or_else(|| json_value.get("name").and_then(|v| v.as_str()));
-
-            if let Some(name) = tool_name {
-                let args = json_value
-                    .get("args")
-                    .or_else(|| json_value.get("arguments"));
-                let args_json = args.cloned().unwrap_or(json!({}));
-
-                // Handle possible mcp__ prefix in Gemini format too
-                if name.starts_with("mcp__") {
-                    return self
-                        .handle_mcp_tool_call(client, history, name, &args_json, response)
-                        .await;
-                }
-
-                return self
-                    .handle_regular_json_tool(
-                        client,
-                        history,
-                        name,
-                        &args_json,
-                        response,
-                        web_search_enabled,
-                    )
-                    .await;
-            }
-        }
-
         // Fallback to old bracket format
         if response.to_uppercase().starts_with(tools::RUN_COMMAND) {
             self.sync_plan_before_tool("run_command")?;

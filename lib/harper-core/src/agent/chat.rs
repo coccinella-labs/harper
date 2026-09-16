@@ -22,6 +22,7 @@ use crate::agent::prompt::PromptBuilder;
 use crate::core::cache::{ApiCacheKey, ApiResponseCache};
 use crate::core::error::{HarperError, HarperResult};
 use crate::core::plan::AuthoringPhase;
+use crate::core::tool_call::{parse_tool_calls, ToolCallSource};
 use crate::core::{ApiConfig, Message};
 use crate::memory::storage::CommandLogEntry;
 use crate::parsing;
@@ -1149,78 +1150,90 @@ impl<'a> ChatService<'a> {
             .and_then(|authoring| authoring.structured_plan.as_ref())
             .is_some();
 
-        for _ in 0..MAX_TOOL_ROUNDS {
+        let tool_call_source = ToolCallSource::from_provider(&self.config.provider);
+        'round: for _ in 0..MAX_TOOL_ROUNDS {
             let clean_response = Self::sanitize_model_response(&response);
-            let normalized_tool_call = Self::normalize_tool_call_for_execution(&clean_response);
-            let tool_signature = Self::tool_call_signature(&normalized_tool_call);
-            let dedupe_key = tool_signature
-                .clone()
-                .unwrap_or_else(|| normalized_tool_call.clone());
-            if self.execution_strategy != ExecutionStrategy::Deterministic
-                && matches!(
-                    self.execution_strategy,
-                    ExecutionStrategy::Auto | ExecutionStrategy::Grounded
-                )
-                && Self::response_looks_like_generic_capability_refusal(&clean_response)
-            {
-                if let Some((tool_name, tool_content)) = self
-                    .try_handle_deterministic_intent(history, &last_user_msg, session_id)
-                    .await?
-                {
-                    return self
-                        .summarize_deterministic_tool_result(
-                            &client,
-                            &mut history_for_llm,
-                            history,
-                            session_id,
-                            &tool_name,
-                            &tool_content,
-                        )
-                        .await;
-                }
+            let mut tool_calls = parse_tool_calls(&clean_response, tool_call_source);
+            for tool_call in &mut tool_calls {
+                tool_call.normalize_run_command();
             }
-            if let Some(required_tool) =
-                Self::forced_tool_retry_target(&last_user_msg, &clean_response, forced_tool_retry)
-            {
-                forced_tool_retry = true;
-                history_for_llm.push(Message {
-                    role: "system".to_string(),
-                    content: format!(
-                        "The user request requires an actual tool call. Do not answer with prose. Respond now with exactly one JSON tool call using `{}`.",
-                        required_tool
-                    ),
-                });
-                self.emit_activity_update(
-                    session_id,
-                    Some(task_mode.model_activity_label().to_string()),
-                );
-                response = match self.call_llm(&client, &history_for_llm).await {
-                    Ok(response) => response,
-                    Err(HarperError::Api(_)) | Err(HarperError::Command(_)) => {
-                        if matches!(task_mode, TaskMode::RespondOnly) {
+
+            // Plain text response without any tool call
+            if tool_calls.is_empty() {
+                if self.execution_strategy != ExecutionStrategy::Deterministic
+                    && matches!(
+                        self.execution_strategy,
+                        ExecutionStrategy::Auto | ExecutionStrategy::Grounded
+                    )
+                    && Self::response_looks_like_generic_capability_refusal(&clean_response)
+                {
+                    if let Some((tool_name, tool_content)) = self
+                        .try_handle_deterministic_intent(history, &last_user_msg, session_id)
+                        .await?
+                    {
+                        return self
+                            .summarize_deterministic_tool_result(
+                                &client,
+                                &mut history_for_llm,
+                                history,
+                                session_id,
+                                &tool_name,
+                                &tool_content,
+                            )
+                            .await;
+                    }
+                }
+                if let Some(required_tool) = Self::forced_tool_retry_target(
+                    &last_user_msg,
+                    &clean_response,
+                    forced_tool_retry,
+                ) {
+                    forced_tool_retry = true;
+                    history_for_llm.push(Message {
+                        role: "system".to_string(),
+                        content: format!(
+                            "The user request requires an actual tool call. Do not answer with prose. Respond now with exactly one JSON tool call using `{}`.",
+                            required_tool
+                        ),
+                    });
+                    self.emit_activity_update(
+                        session_id,
+                        Some(task_mode.model_activity_label().to_string()),
+                    );
+                    response = match self.call_llm(&client, &history_for_llm).await {
+                        Ok(response) => response,
+                        Err(HarperError::Api(_)) | Err(HarperError::Command(_)) => {
+                            if matches!(task_mode, TaskMode::RespondOnly) {
+                                return Ok(Self::model_backend_unavailable_reply());
+                            }
+                            if let Some((tool_name, tool_content)) = self
+                                .try_handle_deterministic_intent(
+                                    history,
+                                    &last_user_msg,
+                                    session_id,
+                                )
+                                .await?
+                            {
+                                return self
+                                    .summarize_deterministic_tool_result(
+                                        &client,
+                                        &mut history_for_llm,
+                                        history,
+                                        session_id,
+                                        &tool_name,
+                                        &tool_content,
+                                    )
+                                    .await;
+                            }
                             return Ok(Self::model_backend_unavailable_reply());
                         }
-                        if let Some((tool_name, tool_content)) = self
-                            .try_handle_deterministic_intent(history, &last_user_msg, session_id)
-                            .await?
-                        {
-                            return self
-                                .summarize_deterministic_tool_result(
-                                    &client,
-                                    &mut history_for_llm,
-                                    history,
-                                    session_id,
-                                    &tool_name,
-                                    &tool_content,
-                                )
-                                .await;
-                        }
-                        return Ok(Self::model_backend_unavailable_reply());
-                    }
-                    Err(err) => return Err(err),
-                };
-                continue;
+                        Err(err) => return Err(err),
+                    };
+                    continue;
+                }
+                break;
             }
+
             let merged_candidate_paths = authoring_context
                 .as_ref()
                 .map(|ctx| {
@@ -1232,103 +1245,98 @@ impl<'a> ChatService<'a> {
                     (!persisted_authoring_scope.is_empty())
                         .then_some(persisted_authoring_scope.clone())
                 });
-            if let Some(authoring_retry_prompt) = Self::authoring_tool_retry_prompt(
-                &last_user_msg,
-                &normalized_tool_call,
-                merged_candidate_paths.as_ref(),
-                saw_authoring_inspection,
-                saw_plan_update,
-                has_structured_authoring_plan,
-                &inspected_paths,
-            ) {
-                history_for_llm.push(Message {
-                    role: "system".to_string(),
-                    content: authoring_retry_prompt,
-                });
-                self.emit_activity_update(
-                    session_id,
-                    Some(task_mode.model_activity_label().to_string()),
-                );
-                response = self.call_llm(&client, &history_for_llm).await?;
-                continue;
-            }
-            if let Some(agents_prompt) = self.agents_guidance_for_tool_call(
-                &normalized_tool_call,
-                session_id,
-                &injected_agents_guidance,
-            )? {
-                injected_agents_guidance.insert(dedupe_key.clone());
-                history_for_llm.push(Message {
-                    role: "system".to_string(),
-                    content: agents_prompt,
-                });
-                self.emit_activity_update(
-                    session_id,
-                    Some(task_mode.model_activity_label().to_string()),
-                );
-                response = self.call_llm(&client, &history_for_llm).await?;
-                continue;
-            }
-            if executed_tool_calls.contains(&dedupe_key) {
-                if let Some(content) = last_tool_content {
-                    if matches!(
-                        Self::tool_name_from_tool_call(&normalized_tool_call).as_deref(),
-                        Some("adx_query" | "azure_data_explorer")
-                    ) {
-                        return Ok(content);
-                    }
-                    return Ok(format!("Tool result:\n{}", content));
-                }
-                break;
-            }
-            if let Some(clarification) = Self::clarification_for_underspecified_tool_call(
-                &last_user_msg,
-                &normalized_tool_call,
-            ) {
-                self.persist_loop_stage(
-                    session_id,
-                    crate::core::plan::PlanLoopStage::Feedback,
-                    Some("clarification required".to_string()),
-                );
-                self.persist_loop_outcome(
-                    session_id,
-                    crate::core::plan::PlanLoopOutcome::Failed,
-                    Some(clarification.clone()),
-                );
-                return Ok(clarification);
-            }
-            let tool_option = {
-                let mut tool_service = ToolService::new(
-                    self.conn,
-                    self.config,
-                    &self.exec_policy,
-                    self.mcp_client,
-                    Some(session_id),
-                );
-                if let Some(approver) = &self.approver {
-                    tool_service = tool_service.with_approver(approver.clone());
-                }
-                if let Some(runtime_events) = &self.runtime_events {
-                    tool_service = tool_service.with_runtime_events(runtime_events.clone());
-                }
-                tool_service
-                    .handle_tool_use(
-                        &client,
-                        &history_for_llm,
-                        &normalized_tool_call,
-                        web_search_enabled,
-                    )
-                    .await?
-            };
 
-            if let Some((tool_result, tool_content)) = tool_option {
-                self.notify_command_activity(session_id);
-                let mut terminal_tool_result = false;
-                if let Some(tool_name) = Self::tool_name_from_tool_call(&normalized_tool_call) {
-                    if matches!(tool_name.as_str(), "adx_query" | "azure_data_explorer") {
+            for tool_call in &tool_calls {
+                let dedupe_key = tool_call.dedupe_key();
+
+                if let Some(authoring_retry_prompt) = Self::authoring_tool_retry_prompt(
+                    &last_user_msg,
+                    &tool_call.to_raw_string(),
+                    merged_candidate_paths.as_ref(),
+                    saw_authoring_inspection,
+                    saw_plan_update,
+                    has_structured_authoring_plan,
+                    &inspected_paths,
+                ) {
+                    history_for_llm.push(Message {
+                        role: "system".to_string(),
+                        content: authoring_retry_prompt,
+                    });
+                    self.emit_activity_update(
+                        session_id,
+                        Some(task_mode.model_activity_label().to_string()),
+                    );
+                    response = self.call_llm(&client, &history_for_llm).await?;
+                    continue 'round;
+                }
+                if let Some(agents_prompt) = self.agents_guidance_for_tool_call(
+                    &tool_call.to_raw_string(),
+                    session_id,
+                    &injected_agents_guidance,
+                )? {
+                    injected_agents_guidance.insert(dedupe_key.clone());
+                    history_for_llm.push(Message {
+                        role: "system".to_string(),
+                        content: agents_prompt,
+                    });
+                    self.emit_activity_update(
+                        session_id,
+                        Some(task_mode.model_activity_label().to_string()),
+                    );
+                    response = self.call_llm(&client, &history_for_llm).await?;
+                    continue 'round;
+                }
+                if executed_tool_calls.contains(&dedupe_key) {
+                    if let Some(content) = last_tool_content {
+                        if matches!(tool_call.name.as_str(), "adx_query" | "azure_data_explorer") {
+                            return Ok(content);
+                        }
+                        return Ok(format!("Tool result:\n{}", content));
+                    }
+                    break 'round;
+                }
+                if let Some(clarification) = Self::clarification_for_underspecified_tool_call(
+                    &last_user_msg,
+                    &tool_call.to_raw_string(),
+                ) {
+                    self.persist_loop_stage(
+                        session_id,
+                        crate::core::plan::PlanLoopStage::Feedback,
+                        Some("clarification required".to_string()),
+                    );
+                    self.persist_loop_outcome(
+                        session_id,
+                        crate::core::plan::PlanLoopOutcome::Failed,
+                        Some(clarification.clone()),
+                    );
+                    return Ok(clarification);
+                }
+                let tool_option = {
+                    let mut tool_service = ToolService::new(
+                        self.conn,
+                        self.config,
+                        &self.exec_policy,
+                        self.mcp_client,
+                        Some(session_id),
+                    );
+                    if let Some(approver) = &self.approver {
+                        tool_service = tool_service.with_approver(approver.clone());
+                    }
+                    if let Some(runtime_events) = &self.runtime_events {
+                        tool_service = tool_service.with_runtime_events(runtime_events.clone());
+                    }
+                    tool_service
+                        .handle_tool_use(&client, &history_for_llm, tool_call, web_search_enabled)
+                        .await?
+                };
+
+                if let Some((tool_result, tool_content)) = tool_option {
+                    self.notify_command_activity(session_id);
+                    let mut terminal_tool_result = false;
+                    if matches!(tool_call.name.as_str(), "adx_query" | "azure_data_explorer") {
                         terminal_tool_result = true;
                     }
-                    if tool_name == "update_plan" {
+                    if tool_call.name == "update_plan" {
                         saw_plan_update = true;
                         if let Some(authoring_request_context) = authoring_context.as_ref() {
                             let _ = crate::tools::plan::seed_plan_authoring_context(
@@ -1347,7 +1355,7 @@ impl<'a> ChatService<'a> {
                         );
                     }
                     if matches!(
-                        tool_name.as_str(),
+                        tool_call.name.as_str(),
                         "read_file"
                             | "codebase_investigator"
                             | "git_diff"
@@ -1356,11 +1364,11 @@ impl<'a> ChatService<'a> {
                             | "grep"
                     ) {
                         saw_authoring_inspection = true;
-                        let inspected =
-                            ToolService::target_paths_for_tool_call(&normalized_tool_call)
-                                .into_iter()
-                                .map(Self::normalize_authoring_path)
-                                .collect::<Vec<_>>();
+                        let inspected = tool_call
+                            .target_paths()
+                            .into_iter()
+                            .map(Self::normalize_authoring_path)
+                            .collect::<Vec<_>>();
                         inspected_paths.extend(inspected.iter().cloned());
                         let _ = crate::tools::plan::mark_plan_authoring_inspection(
                             self.conn,
@@ -1371,8 +1379,9 @@ impl<'a> ChatService<'a> {
                                 .collect(),
                         );
                     }
-                    if matches!(tool_name.as_str(), "search_replace" | "write_file") {
-                        let edited = ToolService::target_paths_for_tool_call(&normalized_tool_call)
+                    if matches!(tool_call.name.as_str(), "search_replace" | "write_file") {
+                        let edited = tool_call
+                            .target_paths()
                             .into_iter()
                             .map(Self::normalize_authoring_path)
                             .collect::<Vec<_>>();
@@ -1385,30 +1394,29 @@ impl<'a> ChatService<'a> {
                                 .collect(),
                         );
                     }
-                    if tool_name == "run_command"
-                        && Self::is_authoring_validation_command(&normalized_tool_call)
+                    if tool_call.name == "run_command"
+                        && Self::is_authoring_validation_command(&tool_call.to_raw_string())
                     {
                         let _ = crate::tools::plan::mark_plan_authoring_validated(
                             self.conn, session_id,
                         );
                     }
+                    executed_tool_calls.insert(dedupe_key);
+                    last_tool_content = Some(tool_content.clone());
+                    let tool_message = Message {
+                        role: "system".to_string(),
+                        content: tool_content,
+                    };
+                    history.push(tool_message.clone());
+                    history_for_llm.push(tool_message);
+                    response = tool_result;
+                    if terminal_tool_result {
+                        break 'round;
+                    }
+                } else {
+                    break 'round;
                 }
-                executed_tool_calls.insert(dedupe_key);
-                last_tool_content = Some(tool_content.clone());
-                let tool_message = Message {
-                    role: "system".to_string(),
-                    content: tool_content,
-                };
-                history.push(tool_message.clone());
-                history_for_llm.push(tool_message);
-                response = tool_result;
-                if terminal_tool_result {
-                    break;
-                }
-                continue;
             }
-
-            break;
         }
 
         self.persist_loop_stage(
