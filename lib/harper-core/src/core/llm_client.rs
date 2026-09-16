@@ -335,7 +335,10 @@ fn build_ollama_request_body(config: &ApiConfig, history: &[Message]) -> Value {
 
 fn extract_assistant_reply(provider: &ApiProvider, resp_json: &Value) -> String {
     match provider {
-        ApiProvider::OpenAI | ApiProvider::Sambanova => {
+        ApiProvider::OpenAI
+        | ApiProvider::Sambanova
+        | ApiProvider::OpenRouter
+        | ApiProvider::Zen => {
             let message = &resp_json["choices"][0]["message"];
             if let Some(tool_calls) = message.get("tool_calls") {
                 serde_json::to_string(tool_calls).unwrap_or_else(|_| "[No response]".to_string())
@@ -403,7 +406,10 @@ pub async fn call_llm(
     history: &[Message],
 ) -> HarperResult<String> {
     let res = match config.provider {
-        ApiProvider::OpenAI | ApiProvider::Sambanova => {
+        ApiProvider::OpenAI
+        | ApiProvider::Sambanova
+        | ApiProvider::OpenRouter
+        | ApiProvider::Zen => {
             let messages_json: Vec<_> = history
                 .iter()
                 .map(|m| json!({"role": m.role, "content": m.content}))

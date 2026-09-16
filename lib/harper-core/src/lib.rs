@@ -99,6 +99,8 @@ mod tests {
             ApiProvider::Sambanova,
             ApiProvider::Gemini,
             ApiProvider::Ollama,
+            ApiProvider::OpenRouter,
+            ApiProvider::Zen,
         ];
 
         for provider in providers {

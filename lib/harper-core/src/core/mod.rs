@@ -35,6 +35,8 @@ pub enum ApiProvider {
     Sambanova,
     Gemini,
     Ollama,
+    OpenRouter,
+    Zen,
 }
 
 impl std::fmt::Display for ApiProvider {
@@ -44,6 +46,8 @@ impl std::fmt::Display for ApiProvider {
             ApiProvider::Sambanova => write!(f, "Sambanova"),
             ApiProvider::Gemini => write!(f, "Gemini"),
             ApiProvider::Ollama => write!(f, "Ollama"),
+            ApiProvider::OpenRouter => write!(f, "OpenRouter"),
+            ApiProvider::Zen => write!(f, "Zen"),
         }
     }
 }
