@@ -24,6 +24,9 @@ use crate::core::error::{HarperError, HarperResult};
 use crate::core::plan::AuthoringPhase;
 use crate::core::tool_call::{parse_tool_calls, ToolCallSource};
 use crate::core::{ApiConfig, Message};
+use crate::harness::{
+    LlmCompleter, RealLlmCompleter, RealToolDispatcher, ToolDispatchContext, ToolDispatcher,
+};
 use crate::memory::storage::CommandLogEntry;
 use crate::parsing;
 use crate::runtime::config::{ExecPolicyConfig, ExecutionStrategy};
@@ -201,6 +204,9 @@ pub struct ChatService<'a> {
     exec_policy: ExecPolicyConfig,
     approver: Option<Arc<dyn UserApproval>>,
     runtime_events: Option<Arc<dyn RuntimeEventSink>>,
+    completer: Arc<dyn LlmCompleter>,
+    dispatcher: Arc<dyn ToolDispatcher>,
+    tool_call_source: Option<ToolCallSource>,
     background_tasks: TaskScheduler<ChatBackgroundTask>,
     todo_reminder_armed: bool,
     last_audit_refresh: Option<Instant>,
@@ -274,6 +280,9 @@ impl<'a> ChatService<'a> {
             exec_policy,
             approver: None,
             runtime_events: None,
+            completer: Arc::new(RealLlmCompleter),
+            dispatcher: Arc::new(RealToolDispatcher),
+            tool_call_source: None,
             background_tasks: TaskScheduler::new(),
             todo_reminder_armed: false,
             last_audit_refresh: None,
@@ -289,6 +298,24 @@ impl<'a> ChatService<'a> {
 
     pub fn with_runtime_events(mut self, runtime_events: Arc<dyn RuntimeEventSink>) -> Self {
         self.runtime_events = Some(runtime_events);
+        self
+    }
+
+    /// Set the model-completion seam (defaults to the real LLM client).
+    pub fn with_completer(mut self, completer: Arc<dyn LlmCompleter>) -> Self {
+        self.completer = completer;
+        self
+    }
+
+    /// Set the tool-execution seam (defaults to the real tool service).
+    pub fn with_dispatcher(mut self, dispatcher: Arc<dyn ToolDispatcher>) -> Self {
+        self.dispatcher = dispatcher;
+        self
+    }
+
+    /// Override tool-call parsing source for deterministic replay tests.
+    pub fn with_tool_call_source(mut self, tool_call_source: ToolCallSource) -> Self {
+        self.tool_call_source = Some(tool_call_source);
         self
     }
 
@@ -357,6 +384,9 @@ impl<'a> ChatService<'a> {
             },
             approver: None,
             runtime_events: None,
+            completer: Arc::new(RealLlmCompleter),
+            dispatcher: Arc::new(RealToolDispatcher),
+            tool_call_source: None,
             background_tasks: TaskScheduler::new(),
             todo_reminder_armed: false,
             last_audit_refresh: None,
@@ -927,7 +957,7 @@ impl<'a> ChatService<'a> {
     }
 
     /// Process message
-    async fn process_message(
+    pub(crate) async fn process_message(
         &mut self,
         history: &mut Vec<Message>,
         web_search_enabled: bool,
@@ -1151,7 +1181,9 @@ impl<'a> ChatService<'a> {
             .and_then(|authoring| authoring.structured_plan.as_ref())
             .is_some();
 
-        let tool_call_source = ToolCallSource::from_provider(&self.config.provider);
+        let tool_call_source = self
+            .tool_call_source
+            .unwrap_or_else(|| ToolCallSource::from_provider(&self.config.provider));
         'round: for _ in 0..MAX_TOOL_ROUNDS {
             let clean_response = Self::sanitize_model_response(&response);
             let mut tool_calls = parse_tool_calls(&clean_response, tool_call_source);
@@ -1320,24 +1352,24 @@ impl<'a> ChatService<'a> {
                     );
                     return Ok(clarification);
                 }
-                let tool_option = {
-                    let mut tool_service = ToolService::new(
-                        self.conn,
-                        self.config,
-                        &self.exec_policy,
-                        self.mcp_client,
-                        Some(session_id),
-                    );
-                    if let Some(approver) = &self.approver {
-                        tool_service = tool_service.with_approver(approver.clone());
-                    }
-                    if let Some(runtime_events) = &self.runtime_events {
-                        tool_service = tool_service.with_runtime_events(runtime_events.clone());
-                    }
-                    tool_service
-                        .handle_tool_use(&client, &history_for_llm, tool_call, web_search_enabled)
-                        .await?
-                };
+                let tool_option = self
+                    .dispatcher
+                    .dispatch(
+                        ToolDispatchContext {
+                            conn: self.conn,
+                            config: self.config,
+                            exec_policy: &self.exec_policy,
+                            session_id: Some(session_id),
+                            mcp_client: self.mcp_client,
+                            approver: self.approver.clone(),
+                            runtime_events: self.runtime_events.clone(),
+                        },
+                        &client,
+                        &history_for_llm,
+                        tool_call,
+                        web_search_enabled,
+                    )
+                    .await?;
 
                 if let Some((tool_result, tool_content)) = tool_option {
                     self.notify_command_activity(session_id);
@@ -3423,7 +3455,10 @@ impl<'a> ChatService<'a> {
         }
 
         // Make API call
-        let response = crate::core::llm_client::call_llm(client, self.config, history).await?;
+        let response = self
+            .completer
+            .complete(client, self.config, history)
+            .await?;
 
         // Cache response
         if let Some(cache) = &mut self.api_cache {
