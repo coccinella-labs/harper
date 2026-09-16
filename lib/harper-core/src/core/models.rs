@@ -44,4 +44,14 @@ impl ProviderModels {
         base_url: "https://api.cerebras.ai/v1/chat/completions",
         default_model: "qwen-3-32b-a4b",
     };
+
+    pub const OPENROUTER: ProviderModels = ProviderModels {
+        base_url: "https://openrouter.ai/api/v1/chat/completions",
+        default_model: "openai/gpt-4o",
+    };
+
+    pub const ZEN: ProviderModels = ProviderModels {
+        base_url: "https://opencode.ai/zen/v1/chat/completions",
+        default_model: "deepseek-v4-pro",
+    };
 }

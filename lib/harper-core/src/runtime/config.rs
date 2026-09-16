@@ -286,6 +286,24 @@ impl HarperConfig {
                 temp_builder = temp_builder
                     .set_override("api.model_name", ProviderModels::CEREBRAS.default_model)?;
             }
+        } else if let Ok(key) = env::var("OPENROUTER_API_KEY") {
+            if !key.trim().is_empty() {
+                temp_builder = temp_builder.set_override("api.api_key", key)?;
+                temp_builder = temp_builder.set_override("api.provider", "OpenRouter")?;
+                temp_builder = temp_builder
+                    .set_override("api.base_url", ProviderModels::OPENROUTER.base_url)?;
+                temp_builder = temp_builder
+                    .set_override("api.model_name", ProviderModels::OPENROUTER.default_model)?;
+            }
+        } else if let Ok(key) = env::var("OPENCODE_API_KEY") {
+            if !key.trim().is_empty() {
+                temp_builder = temp_builder.set_override("api.api_key", key)?;
+                temp_builder = temp_builder.set_override("api.provider", "Zen")?;
+                temp_builder =
+                    temp_builder.set_override("api.base_url", ProviderModels::ZEN.base_url)?;
+                temp_builder = temp_builder
+                    .set_override("api.model_name", ProviderModels::ZEN.default_model)?;
+            }
         }
 
         // Map DATABASE_PATH
@@ -365,11 +383,11 @@ impl ApiConfig {
     fn validate(&self) -> HarperResult<()> {
         // Validate provider
         let requires_api_key = match self.provider.as_str() {
-            "OpenAI" | "Sambanova" | "Gemini" => true,
+            "OpenAI" | "Sambanova" | "Gemini" | "OpenRouter" | "Zen" => true,
             "Ollama" => false,
             _ => {
                 return Err(HarperError::Config(format!(
-                "Invalid API provider: {}. Supported providers: OpenAI, Sambanova, Gemini, Ollama",
+                "Invalid API provider: {}. Supported providers: OpenAI, Sambanova, Gemini, Ollama, OpenRouter, Zen",
                 self.provider
             )))
             }
@@ -408,6 +426,8 @@ impl ApiConfig {
             "Sambanova" => Ok(ApiProvider::Sambanova),
             "Gemini" => Ok(ApiProvider::Gemini),
             "Ollama" => Ok(ApiProvider::Ollama),
+            "OpenRouter" => Ok(ApiProvider::OpenRouter),
+            "Zen" => Ok(ApiProvider::Zen),
             _ => Err(HarperError::Config(format!(
                 "Unsupported provider: {}",
                 self.provider
