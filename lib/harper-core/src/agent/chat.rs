@@ -1068,7 +1068,7 @@ impl<'a> ChatService<'a> {
             Ok(response) => response,
             Err(HarperError::Api(_)) | Err(HarperError::Command(_)) => {
                 if matches!(task_mode, TaskMode::RespondOnly) {
-                    return Ok(Self::model_backend_unavailable_reply());
+                    return Ok(self.persist_backend_unavailable(session_id));
                 }
                 if let Some((tool_name, tool_content)) = self
                     .try_handle_deterministic_intent(history, &last_user_msg, session_id)
@@ -1085,7 +1085,7 @@ impl<'a> ChatService<'a> {
                         )
                         .await;
                 }
-                return Ok(Self::model_backend_unavailable_reply());
+                return Ok(self.persist_backend_unavailable(session_id));
             }
             Err(err) => return Err(err),
         };
@@ -1093,6 +1093,7 @@ impl<'a> ChatService<'a> {
         let mut injected_agents_guidance: HashSet<String> = HashSet::new();
         let mut last_tool_content: Option<String> = None;
         let mut forced_tool_retry = false;
+        let mut saw_retry_guidance = false;
         let persisted_authoring = self
             .prompt_id
             .as_deref()
@@ -1189,6 +1190,7 @@ impl<'a> ChatService<'a> {
                     forced_tool_retry,
                 ) {
                     forced_tool_retry = true;
+                    saw_retry_guidance = true;
                     history_for_llm.push(Message {
                         role: "system".to_string(),
                         content: format!(
@@ -1204,7 +1206,7 @@ impl<'a> ChatService<'a> {
                         Ok(response) => response,
                         Err(HarperError::Api(_)) | Err(HarperError::Command(_)) => {
                             if matches!(task_mode, TaskMode::RespondOnly) {
-                                return Ok(Self::model_backend_unavailable_reply());
+                                return Ok(self.persist_backend_unavailable(session_id));
                             }
                             if let Some((tool_name, tool_content)) = self
                                 .try_handle_deterministic_intent(
@@ -1225,7 +1227,7 @@ impl<'a> ChatService<'a> {
                                     )
                                     .await;
                             }
-                            return Ok(Self::model_backend_unavailable_reply());
+                            return Ok(self.persist_backend_unavailable(session_id));
                         }
                         Err(err) => return Err(err),
                     };
@@ -1258,6 +1260,7 @@ impl<'a> ChatService<'a> {
                     has_structured_authoring_plan,
                     &inspected_paths,
                 ) {
+                    saw_retry_guidance = true;
                     history_for_llm.push(Message {
                         role: "system".to_string(),
                         content: authoring_retry_prompt,
@@ -1287,6 +1290,12 @@ impl<'a> ChatService<'a> {
                     continue 'round;
                 }
                 if executed_tool_calls.contains(&dedupe_key) {
+                    if saw_retry_guidance {
+                        return Ok(
+                            "This tool was already executed this round, consider a different tool."
+                                .to_string(),
+                        );
+                    }
                     if let Some(content) = last_tool_content {
                         if matches!(tool_call.name.as_str(), "adx_query" | "azure_data_explorer") {
                             return Ok(content);
@@ -1535,6 +1544,21 @@ impl<'a> ChatService<'a> {
     ) {
         let _ =
             crate::tools::plan::record_plan_loop_outcome(self.conn, session_id, outcome, feedback);
+    }
+
+    fn persist_backend_unavailable(&self, session_id: &str) -> String {
+        let reply = Self::model_backend_unavailable_reply();
+        self.persist_loop_stage(
+            session_id,
+            crate::core::plan::PlanLoopStage::Feedback,
+            Some(reply.clone()),
+        );
+        self.persist_loop_outcome(
+            session_id,
+            crate::core::plan::PlanLoopOutcome::BackendUnavailable,
+            Some(reply.clone()),
+        );
+        reply
     }
 
     fn plan_prompt_for_request(
