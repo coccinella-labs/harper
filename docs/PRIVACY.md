@@ -256,7 +256,7 @@ If you disagree with policy changes:
 
 - **GitHub Issues**: [Open a privacy-related issue](https://github.com/coccinella-labs/harper/issues)
 - **Discussions**: [Privacy discussions](https://github.com/coccinella-labs/harper/discussions)
-- **Email**: harpertoken@icloud.com (for sensitive concerns)
+- **Email**: coccinella.labs@icloud.com (for sensitive concerns)
 
 ### Data Requests
 

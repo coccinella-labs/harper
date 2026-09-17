@@ -6,12 +6,14 @@
     <title>Harper · API Server</title>
     <meta name="harper-update-version" content="2026-05-01-server-v8" />
     <link rel="stylesheet" href="styles.css" />
-    <link rel="icon" type="image/png" href="https://avatars.githubusercontent.com/u/283287531?s=200&v=4" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
 </head>
 <body>
     <div class="page">
         <header class="site-header">
-            <div class="brand"><img src="https://avatars.githubusercontent.com/u/283287531?s=200&v=4" alt="" />HARPER<span>·AI</span></div>
+            <div class="brand"><img src="https://avatars.githubusercontent.com/u/283287531?s=200&v=4" alt="" />HARPER<span>·TUI</span></div>
             <nav class="nav">
                 <a href="index.html" data-update-target="home">Home</a>
                 <a href="installation.html" data-update-target="install">Install</a>
@@ -126,7 +128,7 @@ curl http://127.0.0.1:8081/api/sessions</code></pre>
 
                 <h3>Health response</h3>
                 <div class="code-wrapper">
-                    <pre><code>{"status":"ok","version":"0.12.0"}</code></pre>
+                    <pre><code>{"status":"ok","version":"0.20.1"}</code></pre>
                 </div>
 
                 <h3>Sessions response</h3>
@@ -309,7 +311,7 @@ vsce package --out harper-review.vsix</code></pre>
                 <h4>Server not running</h4>
                 <div class="code-wrapper">
                     <pre><code>curl http://127.0.0.1:8081/health
-# {"status":"ok","version":"0.12.0"}</code></pre>
+# {"status":"ok","version":"0.20.1"}</code></pre>
                     <button class="copy-btn"></button>
                 </div>
                 <p>If it fails, start the server: <code>cargo run -p harper-ui --bin harper</code></p>

@@ -1,11 +1,11 @@
 {
-  "index.html": "2026-05-17-home-sandbox",
-  "docs.html": "2026-05-09-docs-shell",
-  "installation.html": "2026-05-17-install-update-path",
+  "index.html": "2026-09-17-home-org-footer",
+  "docs.html": "2026-09-17-docs-arch-snapshot",
+  "installation.html": "2026-09-17-install-providers",
   "troubleshooting.html": "2026-05-17-troubleshooting-update-path",
-  "blog.html": "2026-05-17-blog-sandbox",
+  "blog.html": "2026-09-17-blog-replay-harness",
   "changelog.html": "2026-04-28-changelog",
   "server.html": "2026-05-01-server-v8",
-  "terms.html": "2026-04-28-terms",
-  "privacy.html": "2026-04-28-privacy"
+  "terms.html": "2026-09-17-terms-org-name",
+  "privacy.html": "2026-09-17-privacy-providers"
 }

@@ -4,14 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Harper · Blog</title>
-    <meta name="harper-update-version" content="2026-05-17-blog-sandbox" />
+    <meta name="harper-update-version" content="2026-09-17-blog-replay-harness" />
     <link rel="stylesheet" href="styles.css" />
-    <link rel="icon" type="image/png" href="https://avatars.githubusercontent.com/u/283287531?s=200&v=4" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
 </head>
 <body>
     <div class="page">
         <header class="site-header">
-            <div class="brand"><img src="https://avatars.githubusercontent.com/u/283287531?s=200&v=4" alt="" />HARPER<span>·AI</span></div>
+            <div class="brand"><img src="https://avatars.githubusercontent.com/u/283287531?s=200&v=4" alt="" />HARPER<span>·TUI</span></div>
             <nav class="nav">
                 <a href="index.html" data-update-target="home">Home</a>
                 <a href="installation.html" data-update-target="install">Install</a>
@@ -29,6 +31,13 @@
             <div class="content-container">
                 <h1 class="hero-title">Notes from the codebase.</h1>
                 <p class="hero-lede">Short product and engineering notes from Harper. This page stays high level. The <a href="changelog.html">changelog</a> keeps the version-by-version detail.</p>
+
+                <article>
+                    <h2>September 2026 · The agent loop became replayable</h2>
+                    <p>Harper's agent tool loop is now deterministic in tests. The completions provider and the tool executor can both be scripted, so a full message round replays against an in-memory database with no network and no live model. The loop behavior is no longer only as trustworthy as the next model prompt.</p>
+                    <p>The seams are additive. In production they wrap the real LLM and tool paths. In tests they are recorded, which pins behavior such as the dedup gate that suppresses repeated tool calls, the clarification path for underspecified tools, the backend-unavailable exit, and the consecutive-tool-round cap. Replay tests now cover the normal round, a four-round shape, runtime activity ordering, and the real dispatcher wiring.</p>
+                    <p>The harness also surfaced three real loop behaviors, tracked separately: the consecutive-tool-round cap, the agents-guidance dedup key mismatch, and write-file placeholder clarification being unreachable for some providers. The point of replayability is exactly that: loop behavior stops being invisible and becomes something tests can argue about.</p>
+                </article>
 
                 <article>
                     <h2>May 2026 · Sandbox behavior became visible</h2>
