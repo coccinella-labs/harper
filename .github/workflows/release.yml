@@ -148,7 +148,7 @@ jobs:
           permission-pull-requests: write
           permission-issues: write
       - id: release
-        uses: coccinella-labs/release@v1.0.0
+        uses: coccinella-labs/release@v1.1.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           release_token: ${{ steps.release-app-token.outputs.token }}
@@ -277,7 +277,7 @@ jobs:
       harper_core_version: ${{ steps.version.outputs.harper_core_version }}
     steps:
       - id: release
-        uses: coccinella-labs/release@v1.0.0
+        uses: coccinella-labs/release@v1.1.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           packages: '[{"path": ".", "name": "harper-workspace"}, {"path": "lib/harper-core", "name": "harper-core"}, {"path": "lib/harper-ui", "name": "harper-ui"}, {"path": "lib/harper-firmware", "name": "harper-firmware"}, {"path": "lib/harper-mcp-server", "name": "harper-mcp-server"}, {"path": "lib/harper-sandbox", "name": "harper-sandbox"}]'
