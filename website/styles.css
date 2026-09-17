@@ -306,3 +306,7 @@ code {
 
     .footnote { padding: 1.5rem 1rem; }
 }
+
+@media (pointer: coarse) {
+    .copy-btn { opacity: 1; }
+}
