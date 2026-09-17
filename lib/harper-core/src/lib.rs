@@ -14,6 +14,7 @@
 
 pub mod agent;
 pub mod core;
+pub mod harness;
 pub mod memory;
 pub mod runtime;
 pub mod server;
