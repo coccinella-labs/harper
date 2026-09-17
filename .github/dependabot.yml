@@ -21,3 +21,9 @@ updates:
       - dependency-type: "direct"
     commit-message:
       prefix: deps
+    groups:
+      cargo-minor-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
