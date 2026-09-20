@@ -99,17 +99,23 @@ impl<'a> SessionService<'a> {
     pub fn get_global_stats(&self) -> HarperResult<GlobalStats> {
         let total_sessions: usize =
             self.conn
-                .query_row("SELECT COUNT(*) FROM sessions", [], |r| r.get(0))?;
+                .query_row("SELECT COUNT(*) FROM sessions", [], |r| {
+                    r.get::<_, i64>(0).map(|count| count as usize)
+                })?;
         let total_messages: usize =
             self.conn
-                .query_row("SELECT COUNT(*) FROM messages", [], |r| r.get(0))?;
+                .query_row("SELECT COUNT(*) FROM messages", [], |r| {
+                    r.get::<_, i64>(0).map(|count| count as usize)
+                })?;
         let total_commands: usize =
             self.conn
-                .query_row("SELECT COUNT(*) FROM command_logs", [], |r| r.get(0))?;
+                .query_row("SELECT COUNT(*) FROM command_logs", [], |r| {
+                    r.get::<_, i64>(0).map(|count| count as usize)
+                })?;
         let approved_commands: usize = self.conn.query_row(
             "SELECT COUNT(*) FROM command_logs WHERE approved = 1",
             [],
-            |r| r.get(0),
+            |r| r.get::<_, i64>(0).map(|count| count as usize),
         )?;
         let avg_duration: f64 = self
             .conn
@@ -133,7 +139,7 @@ impl<'a> SessionService<'a> {
         let total_sessions: usize = self.conn.query_row(
             "SELECT COUNT(*) FROM sessions WHERE user_id = ?1",
             [user_id],
-            |r| r.get(0),
+            |r| r.get::<_, i64>(0).map(|count| count as usize),
         )?;
         let total_messages: usize = self.conn.query_row(
             "SELECT COUNT(*)
@@ -141,7 +147,7 @@ impl<'a> SessionService<'a> {
              JOIN sessions s ON s.id = m.session_id
              WHERE s.user_id = ?1",
             [user_id],
-            |r| r.get(0),
+            |r| r.get::<_, i64>(0).map(|count| count as usize),
         )?;
         let total_commands: usize = self.conn.query_row(
             "SELECT COUNT(*)
@@ -149,7 +155,7 @@ impl<'a> SessionService<'a> {
              JOIN sessions s ON s.id = c.session_id
              WHERE s.user_id = ?1",
             [user_id],
-            |r| r.get(0),
+            |r| r.get::<_, i64>(0).map(|count| count as usize),
         )?;
         let approved_commands: usize = self.conn.query_row(
             "SELECT COUNT(*)
@@ -157,7 +163,7 @@ impl<'a> SessionService<'a> {
              JOIN sessions s ON s.id = c.session_id
              WHERE s.user_id = ?1 AND c.approved = 1",
             [user_id],
-            |r| r.get(0),
+            |r| r.get::<_, i64>(0).map(|count| count as usize),
         )?;
         let avg_duration: f64 = self
             .conn

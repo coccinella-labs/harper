@@ -99,7 +99,7 @@ pub fn manage_todo(
             }
             let (id, desc): (i64, String) = match conn.query_row(
                 "SELECT id, description FROM todos ORDER BY id ASC LIMIT 1 OFFSET ?1",
-                [index - 1],
+                [(index - 1) as i64],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             ) {
                 Ok(todo) => todo,
