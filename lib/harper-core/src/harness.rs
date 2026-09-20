@@ -581,6 +581,10 @@ mod tests {
         let tools = [
             ("run_command", r#"{"command":"cargo test"}"#),
             ("read_file", r#"{"path":"src/main.rs"}"#),
+            // The read_file call triggers agents-guidance injection (its
+            // target path now resolves for OpenAI sources), which costs one
+            // extra model turn; the model then proceeds with the same call.
+            ("read_file", r#"{"path":"src/main.rs"}"#),
         ];
         let completer = Arc::new(ScriptedCompleter::new(
             tools
