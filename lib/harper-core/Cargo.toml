@@ -57,7 +57,7 @@ tar = "0.4"
 zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
 harper-firmware = { path = "../harper-firmware" }
 harper-sandbox = { path = "../harper-sandbox" }
-syn = { version = "2.0", features = ["full", "visit"] }
+syn = { version = "3.0", features = ["full", "visit"] }
 
 # Dependency resolution
 [dependencies.base64]

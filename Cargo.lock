@@ -1846,7 +1846,7 @@ dependencies = [
  "serde",
  "serde_json",
  "socket2",
- "syn 2.0.117",
+ "syn 3.0.5",
  "sync_wrapper",
  "tar",
  "tempfile",
