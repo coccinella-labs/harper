@@ -89,19 +89,19 @@ jobs:
       shell: pwsh
       run: |
         $env:CARGO_BAZEL_REPIN = "true"
-        bazel build //lib/harper-ui:harper_ui --verbose_failures -s
+        bazel build :harper_bin --verbose_failures -s
       continue-on-error: true
-    - name: Dump harper_ui Bazel params on failure
+    - name: Dump harper_bin Bazel params on failure
       if: steps.build_bazel.outcome == 'failure'
       shell: pwsh
       run: |
-        $params = Get-ChildItem -Path bazel-out -Recurse -Filter "libharper_ui-*.params" -ErrorAction SilentlyContinue | Select-Object -First 1
+        $params = Get-ChildItem -Path bazel-out -Recurse -Filter "harper-*.params" -ErrorAction SilentlyContinue | Select-Object -First 1
         if (-not $params) {
-          Write-Host "No harper_ui params file found under bazel-out."
+          Write-Host "No harper_bin params file found under bazel-out."
           exit 1
         }
 
-        Write-Host "harper_ui params file: $($params.FullName)"
+        Write-Host "harper_bin params file: $($params.FullName)"
         $lines = Get-Content $params.FullName
         $lines
 
@@ -199,17 +199,22 @@ jobs:
       run: |
         $env:CARGO_BAZEL_REPIN = "true"
         bazel test //lib/harper-core:harper_core_test --verbose_failures -s
-    - name: Check harper-ui artifact
+    - name: Check harper_bin artifact
       shell: pwsh
       run: |
         $executionRoot = (bazel info execution_root).Trim()
         $artifactRelative = [string](
-          bazel cquery --output=files //lib/harper-ui:harper_ui |
+          bazel cquery --output=files :harper_bin |
           Select-Object -First 1
         ).Trim()
         $artifact = Join-Path $executionRoot $artifactRelative
         if (-not (Test-Path $artifact)) {
-          Write-Host "Missing harper_ui artifact: $artifact"
+          Write-Host "Missing harper_bin artifact: $artifact"
           exit 1
         }
-        Write-Host "harper_ui artifact: $artifact"
+        Write-Host "harper_bin artifact: $artifact"
+    - name: Test Bazel build
+      shell: pwsh
+      run: |
+        $env:CARGO_BAZEL_REPIN = "true"
+        bazel run :harper_bin -- --version
