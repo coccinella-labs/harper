@@ -4,11 +4,12 @@ Use this guide when `.github/workflows/build-bazel.yml` fails in the `build-wind
 
 ## Scope
 
-The Windows lane is intentionally narrower than Linux and macOS:
+The Windows lane builds the full binary, matching Linux and macOS (restored after the `rules_rust` 0.74 bump picked up the upstream params-files fix for E0463, see #347):
 
-- build `//lib/harper-ui:harper_ui`
+- build `:harper_bin` (alias for `//lib/harper-ui:harper`)
 - test `//lib/harper-core:harper_core_test`
-- verify the built `harper_ui` artifact exists
+- verify the built `harper_bin` artifact exists
+- run `:harper_bin -- --version`
 
 It is a cross-platform smoke lane, not the full executable matrix.
 
@@ -17,7 +18,7 @@ It is a cross-platform smoke lane, not the full executable matrix.
 Read the workflow in this order:
 
 1. `Build with Bazel`
-2. `Dump harper_ui Bazel params on failure`
+2. `Dump harper_bin Bazel params on failure`
 3. `Test harper-core with Bazel`
 4. `Check harper-ui artifact`
 
@@ -30,9 +31,9 @@ The Windows build step runs Bazel with:
 - `--verbose_failures`
 - `-s`
 
-If `//lib/harper-ui:harper_ui` fails, the workflow also:
+If `:harper_bin` fails, the workflow also:
 
-- dumps `libharper_ui-*.params`
+- dumps `harper-*.params`
 - checks whether each `--extern=...` artifact exists
 - checks whether each `-Ldependency=...` directory exists
 - runs a direct `rustc` smoke compile against the dumped `serde` extern
@@ -71,7 +72,7 @@ The smoke compile reuses:
 Interpret the result as follows:
 
 - if the direct smoke compile fails with `can't find crate`, rustc cannot load externs correctly in that Windows action context
-- if the direct smoke compile succeeds, the failure is specific to the full `harper_ui` compile shape rather than basic extern loading
+- if the direct smoke compile succeeds, the failure is specific to the full `harper_bin` compile shape rather than basic extern loading
 
 ## Upstream Repro
 
@@ -83,7 +84,7 @@ The previous full Windows `:harper_bin` lane was reduced to a direct `rustc` inv
 - target:
   - `x86_64-pc-windows-msvc`
 - sysroot:
-  - taken from the dumped `harper_ui` params file
+  - taken from the dumped `harper_bin` params file
 - extern:
   - `--extern=serde=.../libserde-*.rlib`
 - dependency search paths:
@@ -114,7 +115,7 @@ That is enough to show the problem is deeper than:
 - missing BUILD deps
 - missing crate-universe outputs
 - obvious path nonexistence
-- `harper_ui` target complexity
+- `harper_bin` target complexity
 
 ## Known Failure Classes
 
@@ -156,12 +157,12 @@ Expected fix area:
 - proc-macro loading
 - rustc path resolution under the Bazel action context
 
-### Full `harper_ui` compile fails but direct smoke compile passes
+### Full `harper_bin` compile fails but direct smoke compile passes
 
 Typical symptoms:
 
 - direct smoke compile succeeds
-- `//lib/harper-ui:harper_ui` still fails
+- `:harper_bin` still fails
 
 Expected fix area:
 
@@ -173,10 +174,10 @@ Expected fix area:
 
 Start with the narrowest useful commands:
 
-- `CARGO_BAZEL_REPIN=1 bazel build //lib/harper-ui:harper_ui`
-- `bazel aquery --include_commandline 'mnemonic("Rustc", //lib/harper-ui:harper_ui)'`
+- `CARGO_BAZEL_REPIN=1 bazel build :harper_bin`
+- `bazel aquery --include_commandline 'mnemonic("Rustc", :harper_bin)'`
 
-Use `aquery` to compare the `harper_ui` Rustc action across platforms:
+Use `aquery` to compare the `harper_bin` Rustc action across platforms:
 
 - wrapper mode
 - params file path
