@@ -1269,16 +1269,16 @@ SYSTEM INSTRUCTION: The tool has completed successfully. The output above is the
     pub fn target_paths_for_tool_call(tool_call: &str) -> Vec<PathBuf> {
         let trimmed = tool_call.trim();
         if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(trimmed) {
-            let tool_name = json_value
-                .get("tool")
-                .and_then(|v| v.as_str())
-                .or_else(|| json_value.get("name").and_then(|v| v.as_str()));
-            let args = json_value
-                .get("args")
-                .or_else(|| json_value.get("arguments"))
-                .cloned()
-                .unwrap_or(serde_json::Value::Null);
-            return extract_target_paths_from_json(tool_name, &args);
+            // OpenAI-family sources re-emit an array of calls; handle each
+            // element so placeholder-path clarification fires for those
+            // providers too.
+            if let Some(calls) = json_value.as_array() {
+                return calls
+                    .iter()
+                    .flat_map(Self::target_paths_from_object)
+                    .collect();
+            }
+            return Self::target_paths_from_object(&json_value);
         }
 
         let upper = trimmed.to_ascii_uppercase();
@@ -1299,6 +1299,38 @@ SYSTEM INSTRUCTION: The tool has completed successfully. The output above is the
         }
 
         Vec::new()
+    }
+
+    fn target_paths_from_object(call: &serde_json::Value) -> Vec<PathBuf> {
+        // Direct shape: {"tool"|"name": ..., "args"|"arguments": {...}}.
+        // OpenAI shape: {"function": {"name": ..., "arguments": "{...}"}},
+        // where arguments is itself JSON-encoded and needs a second parse.
+        let (tool_name, args) = match call.get("function") {
+            Some(function) => {
+                let name = function.get("name").and_then(|v| v.as_str());
+                let args = match function.get("arguments") {
+                    Some(serde_json::Value::String(encoded)) => {
+                        serde_json::from_str(encoded).unwrap_or(serde_json::Value::Null)
+                    }
+                    Some(other) => other.clone(),
+                    None => serde_json::Value::Null,
+                };
+                (name, args)
+            }
+            None => {
+                let name = call
+                    .get("tool")
+                    .and_then(|v| v.as_str())
+                    .or_else(|| call.get("name").and_then(|v| v.as_str()));
+                let args = call
+                    .get("args")
+                    .or_else(|| call.get("arguments"))
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null);
+                (name, args)
+            }
+        };
+        extract_target_paths_from_json(tool_name, &args)
     }
 
     fn tool_name_from_call(tool_call_json: &str) -> Option<String> {
@@ -1954,6 +1986,14 @@ mod tests {
     #[test]
     fn extracts_target_paths_from_bracket_tool_call() {
         let paths = ToolService::target_paths_for_tool_call(r#"[READ_FILE src/main.rs]"#);
+        assert_eq!(paths, vec![PathBuf::from("src/main.rs")]);
+    }
+
+    #[test]
+    fn extracts_target_paths_from_openai_array_tool_call() {
+        let paths = ToolService::target_paths_for_tool_call(
+            r#"[{"id":"call_abc","function":{"name":"write_file","arguments":"{\"path\":\"src/main.rs\"}"}}]"#,
+        );
         assert_eq!(paths, vec![PathBuf::from("src/main.rs")]);
     }
 
