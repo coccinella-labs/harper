@@ -61,15 +61,64 @@ jobs:
           rm -f cargo-bazel-lock.json
           CARGO_BAZEL_REPIN=true bazel build :harper_bin 2>/dev/null || true
 
+      - name: Summarize lockfile changes
+        id: summary
+        run: |
+          python3 - << 'PYEOF' >> "$GITHUB_OUTPUT"
+          import re
+          import subprocess
+
+          diff = subprocess.run(
+              ["git", "diff", "Cargo.lock"], capture_output=True, text=True
+          ).stdout
+          bumps = []
+          current_name = None
+          old_version = None
+          for line in diff.splitlines():
+              name = re.match(r'[ +-]name = "(.*)"$', line)
+              if name:
+                  current_name = name.group(1)
+                  old_version = None
+                  continue
+              old = re.match(r'-version = "(.*)"$', line)
+              if old:
+                  old_version = old.group(1)
+                  continue
+              new = re.match(r'\+version = "(.*)"$', line)
+              if new and current_name and old_version:
+                  bumps.append((current_name, old_version, new.group(1)))
+                  old_version = None
+
+          if bumps:
+              short = ", ".join(f"{n} {o}->{v}" for n, o, v in bumps[:8])
+              if len(bumps) > 8:
+                  short += f", +{len(bumps) - 8} more"
+              title = f"[chore] update rust lockfiles ({short})"
+              print(f"title={title[:200]}")
+              print("body<<EOF")
+              print("## Summary")
+              print("- update `Cargo.lock`")
+              print("- repin `cargo-bazel-lock.json` to keep Bazel dependencies in sync")
+              print("")
+              print("## Bumps")
+              for name, old_version, new_version in bumps:
+                  print(f"- {name}: {old_version} -> {new_version}")
+              print("EOF")
+          else:
+              print("title=[chore] update rust lockfiles")
+              print("body<<EOF")
+              print("## Summary")
+              print("- update `Cargo.lock`")
+              print("- repin `cargo-bazel-lock.json` to keep Bazel dependencies in sync")
+              print("EOF")
+          PYEOF
+
       - name: Create PR
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ steps.app-token.outputs.token }}
           commit-message: "chore: update rust lockfiles"
-          title: "[chore] update rust lockfiles"
-          body: |
-            ## Summary
-            - update `Cargo.lock`
-            - repin `cargo-bazel-lock.json` to keep Bazel dependencies in sync
+          title: ${{ steps.summary.outputs.title }}
+          body: ${{ steps.summary.outputs.body }}
           branch: cargo-lock-update
           delete-branch: true
