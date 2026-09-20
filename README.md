@@ -123,4 +123,4 @@ If the model returns malformed tool output, inspect the session database at `dat
 
 ## License
 
-Harper is available under the MIT License or the Apache License, Version 2.0, at your option, as declared in `Cargo.toml`. Commercial use terms are in `COMMERCIAL_LICENSE`.
+Harper is available under the MIT License or the Apache License, Version 2.0, at your option. See `LICENSE-MIT` and `LICENSE-APACHE`. Commercial use terms are in `COMMERCIAL_LICENSE`.
