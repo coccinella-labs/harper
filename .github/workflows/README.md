@@ -27,6 +27,7 @@ This directory contains all automation that runs in GitHub Actions for the Harpe
 | PR Title | `fix-pr-title.yml` | Rewrites PR titles into `[scope] message` format via `coccinella-labs/title@v1`. Title edits run through the Harper app token. | PR events on `main` |
 | Harper | `harper-check.yml` | Publishes a lightweight app-backed check so Harper automation appears as the Harper GitHub App in PR checks and on `main`. | PR target events, push to `main` |
 | Labels | `label-sync.yml` | Syncs repository labels from `config/labeler.yml` via custom script. Label writes run through the Harper app token. | Weekly cron, manual dispatch |
+| Issue Labels | `issue-labels.yml` | Auto-labels issues from title/body keywords (`[fix]` to `bug`, `[feat]` to `enhancement`, plus area keywords). Only adds missing labels, never removes. Label writes run through the Harper app token. | Issue opened, edited, reopened |
 | Linux Packages | `linux-packages.yml` | Generates Debian packages from published Linux release artifacts and uploads them for package-channel validation. | `harper-[0-9]*` tag push, manual dispatch |
 | Lock PRs | `lock-merged-prs.yml` | Locks PRs after merge (via `gh pr lock`). Auto Merge path is handled by `post-auto-merge-ci.yml`. Lock actions run through the Harper app token. | PR closed (merged) |
 | Nightly | `nightly.yml` | Uses `coccinella-labs/rust-nightly` reusable workflow: runs tests, builds release, creates prerelease with tag `nightly-{sha}`. Benchmarks disabled for faster runs. | Daily cron (midnight UTC), manual dispatch |

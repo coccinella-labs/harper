@@ -1,0 +1,108 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright 2026 coccinella-labs
+#
+# Licensed under the Apache License, Version 2.0
+#
+name: Issue Labels
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  label:
+    name: Issue Labels
+    runs-on: ubuntu-latest
+    if: github.repository_owner == 'coccinella-labs'
+    steps:
+      - id: app-token
+        name: Create Harper app token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.HARPER_APP_ID }}
+          private-key: ${{ secrets.HARPER_APP_PRIVATE_KEY }}
+          permission-issues: write
+
+      - name: Apply keyword labels
+        uses: actions/github-script@v7
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const title = (process.env.ISSUE_TITLE || '').toLowerCase();
+            const body = (process.env.ISSUE_BODY || '').toLowerCase();
+            const text = `${title}\n${body}`;
+            const number = Number(process.env.ISSUE_NUMBER);
+
+            // [type] prefix maps, mirroring the PR title convention.
+            const wanted = new Set();
+            if (/\[fix\]|\bfix:/.test(text)) wanted.add('bug');
+            if (/\[feat\]|\bfeat:/.test(text)) wanted.add('enhancement');
+            if (/\[docs\]|\bdocs:/.test(text)) wanted.add('area: docs');
+            if (/\[chore\]|\[ci\]|\bchore:|\bci:/.test(text)) wanted.add('area: ci');
+
+            // Area keyword maps. Kept narrow; unknown areas stay unlabeled
+            // rather than guessed.
+            const areaRules = [
+              [/turul|\bmcp\b|model context protocol/, 'area: mcp-server'],
+              [/sandbox|bwrap|sandbox-exec|firmware|esp32|stm32|gpio/, 'area: core'],
+              [/ratatui|\btui\b|terminal ui|syntax highlighting|theme/, 'area: ui'],
+              [/provider|\bllm\b|openai|gemini|ollama|openrouter|anthropic|\bmodel\b/, 'llm'],
+              [/dependabot|\bdeps\b|version bump|crate update/, 'dependencies'],
+              [/workflow|github actions|clippy|toolchain|packaging|homebrew|docker/, 'area: ci'],
+              [/flaky|coverage|tarpaulin|llvm-cov|e2e/, 'area: testing'],
+              [/website|readme|docs\.md|blog|changelog/, 'area: docs'],
+              [/license|commercial|\bcla\b|copyright/, 'area: governance'],
+            ];
+            for (const [pattern, label] of areaRules) {
+              if (pattern.test(text)) wanted.add(label);
+            }
+
+            const { owner, repo } = context.repo;
+            const current = await github.rest.issues.get({ owner, repo, issue_number: number });
+
+            if (wanted.size > 0) {
+              const existing = new Set(current.data.labels.map((label) => label.name));
+              const missing = [...wanted].filter((label) => !existing.has(label));
+
+              if (missing.length === 0) {
+                core.info(`Issue #${number} already carries all matched labels`);
+              } else {
+                await github.rest.issues.addLabels({ owner, repo, issue_number: number, labels: missing });
+                core.info(`Added to issue #${number}: ${missing.join(', ')}`);
+              }
+            } else {
+              core.info(`No keyword labels match issue #${number}`);
+            }
+
+            // Mirror assign-pr-milestone.yml tiers so issues triage like PRs.
+            // Never overwrite a milestone a human set.
+            if (!current.data.milestone) {
+              const labelText = [...wanted].join(' ');
+              const haystack = `${text} ${labelText}`;
+              const ciDeps = new RegExp(
+                'ci|build|release|workflow|homebrew|lockfile|cargo\\.lock'
+                + '|commitlint|pr[ -]?title|bazel|dependabot|deps|dependencies',
+              );
+              const serverAgent = new RegExp(
+                'auth|planning|plan|agents?|routing|intent|mcp|sandbox'
+                + '|approval|workspace|account|session|profile|sse|server',
+              );
+              let milestone = 5;
+              if (ciDeps.test(haystack)) {
+                milestone = 4;
+              } else if (serverAgent.test(haystack)) {
+                milestone = 6;
+              }
+              await github.rest.issues.update({ owner, repo, issue_number: number, milestone });
+              core.info(`Assigned issue #${number} to milestone ${milestone}`);
+            } else {
+              core.info(`Issue #${number} already has a milestone`);
+            }
