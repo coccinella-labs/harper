@@ -11,14 +11,6 @@
 # base_url = "http://localhost:11434/api/chat"
 # model_name = "llama3"
 
-# Or use Cerebras (fast, cost-effective)
-# Set CEREBRAS_API_KEY env var or add api_key below
-[api]
-provider = "Cerebras"
-api_key = ""
-base_url = "https://api.cerebras.ai/v1/chat/completions"
-model_name = "qwen-3-32b-a4b"
-
 [database]
 path = ".harper/sessions.db"
 

@@ -111,7 +111,7 @@ We share your data only in these limited circumstances:
 
 #### AI Provider APIs
 - **Purpose**: To provide AI responses to your messages
-- **Providers**: OpenAI, Sambanova, Google Gemini, or Cerebras (your choice)
+- **Providers**: OpenAI, Sambanova, or Google Gemini (your choice)
 - **Data Sent**: Only the conversation messages you send
 - **Retention**: Subject to each provider's privacy policy
 
@@ -187,7 +187,6 @@ Harper integrates with third-party AI services:
 | **OpenAI** | [OpenAI Privacy](https://openai.com/privacy/) | Messages processed for AI responses |
 | **Sambanova** | [Sambanova Privacy](https://sambanova.ai/privacy/) | Messages processed for AI responses |
 | **Google Gemini** | [Google Privacy](https://policies.google.com/privacy) | Messages processed for AI responses |
-| **Cerebras** | [Cerebras Privacy](https://cerebras.ai/privacy) | Messages processed for AI responses |
 
 ### Important Notes
 

@@ -22,11 +22,6 @@ model_name = "gpt-5.5"
 # api_key = ""
 # base_url = "http://localhost:11434/api/chat"
 # model_name = "llama3"
-# To use Cerebras (fast, cost-effective):
-# provider = "Cerebras"
-# api_key = "your_cerebras_api_key_here"
-# base_url = "https://api.cerebras.ai/v1/chat/completions"
-# model_name = "qwen-3-32b-a4b"
 
 [auth]
 enabled = false
