@@ -1122,6 +1122,12 @@ impl<'a> ChatService<'a> {
         let mut executed_tool_calls: HashSet<String> = HashSet::new();
         let mut injected_agents_guidance: HashSet<String> = HashSet::new();
         let mut last_tool_content: Option<String> = None;
+        // Forced retry fires at most once per message by design. After a
+        // tool executes, dispatch produces a plain-language followup that
+        // must be accepted as the final answer; resetting this latch would
+        // force past every followup and exhaust MAX_TOOL_ROUNDS on each
+        // tool-requiring request. Batched tool calls in one response are
+        // unaffected by this budget.
         let mut forced_tool_retry = false;
         let mut saw_retry_guidance = false;
         let persisted_authoring = self
