@@ -22,7 +22,7 @@ use crate::agent::prompt::PromptBuilder;
 use crate::core::cache::{ApiCacheKey, ApiResponseCache};
 use crate::core::error::{HarperError, HarperResult};
 use crate::core::plan::AuthoringPhase;
-use crate::core::tool_call::{parse_tool_calls, ToolCallSource};
+use crate::core::tool_call::{parse_tool_calls, ToolCall, ToolCallSource};
 use crate::core::{ApiConfig, Message};
 use crate::harness::{
     LlmCompleter, RealLlmCompleter, RealToolDispatcher, ToolDispatchContext, ToolDispatcher,
@@ -1311,7 +1311,7 @@ impl<'a> ChatService<'a> {
                     continue 'round;
                 }
                 if let Some(agents_prompt) = self.agents_guidance_for_tool_call(
-                    &tool_call.to_raw_string(),
+                    tool_call,
                     session_id,
                     &injected_agents_guidance,
                 )? {
@@ -1497,18 +1497,19 @@ impl<'a> ChatService<'a> {
 
     fn agents_guidance_for_tool_call(
         &self,
-        tool_call: &str,
+        tool_call: &ToolCall,
         session_id: &str,
         injected_agents_guidance: &HashSet<String>,
     ) -> Result<Option<String>, HarperError> {
-        let Some(tool_signature) = Self::tool_call_signature(tool_call) else {
-            return Ok(None);
-        };
-        if injected_agents_guidance.contains(&tool_signature) {
+        // The membership check and the caller-side insert must use the same
+        // canonical key. Checking the raw-call signature while inserting the
+        // canonical dedupe key meant the guard never engaged and guidance
+        // re-injected every round.
+        if injected_agents_guidance.contains(&tool_call.dedupe_key()) {
             return Ok(None);
         }
 
-        let target_paths = ToolService::target_paths_for_tool_call(tool_call);
+        let target_paths = ToolService::target_paths_for_tool_call(&tool_call.to_raw_string());
         if target_paths.is_empty() {
             crate::memory::storage::save_active_agents(self.conn, session_id, None)?;
             self.emit_agents_update(session_id, None);
