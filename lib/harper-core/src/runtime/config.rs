@@ -277,15 +277,6 @@ impl HarperConfig {
                 temp_builder = temp_builder.set_override("api.model_name", model)?;
                 temp_builder = temp_builder.set_override("api.api_key", "")?;
             }
-        } else if let Ok(key) = env::var("CEREBRAS_API_KEY") {
-            if !key.trim().is_empty() {
-                temp_builder = temp_builder.set_override("api.api_key", key)?;
-                temp_builder = temp_builder.set_override("api.provider", "Cerebras")?;
-                temp_builder =
-                    temp_builder.set_override("api.base_url", ProviderModels::CEREBRAS.base_url)?;
-                temp_builder = temp_builder
-                    .set_override("api.model_name", ProviderModels::CEREBRAS.default_model)?;
-            }
         } else if let Ok(key) = env::var("OPENROUTER_API_KEY") {
             if !key.trim().is_empty() {
                 temp_builder = temp_builder.set_override("api.api_key", key)?;
