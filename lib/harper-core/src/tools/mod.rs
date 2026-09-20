@@ -29,6 +29,7 @@ pub mod github;
 pub mod image;
 pub mod plan;
 pub mod screenpipe;
+pub mod search;
 pub mod shell;
 pub mod todo;
 pub mod web;

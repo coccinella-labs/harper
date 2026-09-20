@@ -23,7 +23,6 @@ use crate::tools::parsing;
 use colored::*;
 use std::io::{self, Write};
 use std::path::Path;
-use walkdir::WalkDir;
 
 use crate::core::io_traits::UserApproval;
 use std::sync::Arc;
@@ -102,22 +101,12 @@ fn find_workspace_file_match_for_cwd(raw_path: &str, cwd: &Path) -> HarperResult
     let mut exact_basename = Vec::new();
     let mut exact_stem = Vec::new();
 
-    for entry in WalkDir::new(cwd)
-        .into_iter()
-        .filter_entry(|entry| {
-            entry
-                .file_name()
-                .to_str()
-                .is_none_or(|name| !should_skip_workspace_dir(name))
-        })
-        .filter_map(Result::ok)
-    {
-        if !entry.file_type().is_file() {
-            continue;
-        }
-
-        let path = entry.path();
-        let relative = path.strip_prefix(cwd).unwrap_or(path);
+    for path in super::search::walk_files(cwd).filter(|path| {
+        path.file_name()
+            .and_then(|name| name.to_str())
+            .is_none_or(|name| !should_skip_workspace_dir(name))
+    }) {
+        let relative = path.strip_prefix(cwd).unwrap_or(&path);
         let relative_str = relative.to_string_lossy().replace('\\', "/");
         let file_name = path
             .file_name()
