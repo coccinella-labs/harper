@@ -1162,17 +1162,22 @@ pub async fn chat_endpoint(
                         let pattern_str = pattern.to_string();
                         let path_str = path.to_string();
 
-                        let output = std::process::Command::new("grep")
-                            .arg("-n")
-                            .arg("-r")
-                            .arg(&pattern_str)
-                            .arg(&path_str)
-                            .output()
-                            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-                        let stdout = String::from_utf8_lossy(&output.stdout);
-                        let stderr = String::from_utf8_lossy(&output.stderr);
-                        let exit_code = output.status.code();
+                        let hits = crate::tools::search::search_files(
+                            std::path::Path::new(&path_str),
+                            &pattern_str,
+                        );
+                        let mut stdout = String::new();
+                        for (file, lines) in &hits {
+                            for (line_no, line) in lines {
+                                stdout.push_str(&format!(
+                                    "{}:{}:{}\n",
+                                    file.display(),
+                                    line_no,
+                                    line
+                                ));
+                            }
+                        }
+                        let exit_code = if hits.is_empty() { Some(1) } else { Some(0) };
 
                         let output_str = if stdout.is_empty() {
                             format!("No matches found for '{}' in {}", pattern_str, path_str)
@@ -1187,7 +1192,6 @@ pub async fn chat_endpoint(
                             )
                         })?;
                         let _ = save_message(&conn, &session_id, "assistant", &output_str);
-                        let stderr_str = stderr.to_string();
                         let record = CommandLogRecord {
                             session_id: Some(session_id.clone()),
                             command: format!("grep {} {}", pattern_str, path_str),
@@ -1198,11 +1202,7 @@ pub async fn chat_endpoint(
                             exit_code,
                             duration_ms: None,
                             stdout_preview: Some(stdout.to_string()),
-                            stderr_preview: if stderr_str.is_empty() {
-                                None
-                            } else {
-                                Some(stderr_str)
-                            },
+                            stderr_preview: None,
                             error_message: None,
                         };
                         let _ = crate::memory::storage::insert_command_log(&conn, &record);
@@ -2025,14 +2025,14 @@ pub async fn approve_pending_tool(
         "grep" => {
             if let Some(pattern) = args.get("pattern").and_then(|p| p.as_str()) {
                 if let Some(path) = args.get("path").and_then(|p| p.as_str()) {
-                    let output = std::process::Command::new("grep")
-                        .arg("-n")
-                        .arg("-r")
-                        .arg(pattern)
-                        .arg(path)
-                        .output()
-                        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-                    let stdout = String::from_utf8_lossy(&output.stdout);
+                    let hits =
+                        crate::tools::search::search_files(std::path::Path::new(path), pattern);
+                    let mut stdout = String::new();
+                    for (file, lines) in &hits {
+                        for (line_no, line) in lines {
+                            stdout.push_str(&format!("{}:{}:{}\n", file.display(), line_no, line));
+                        }
+                    }
                     if stdout.is_empty() {
                         format!("No matches found for '{}' in {}", pattern, path)
                     } else {

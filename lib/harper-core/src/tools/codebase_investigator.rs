@@ -20,13 +20,11 @@ use crate::tools::parsing;
 use colored::*;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::ffi::OsStr;
 use std::path::Path;
 use std::process::Command;
 use std::sync::Arc;
 use syn::visit::Visit;
 use tempfile::tempdir;
-use walkdir::{DirEntry, WalkDir};
 
 #[derive(Debug, Clone)]
 struct WorkspaceGraph {
@@ -251,16 +249,16 @@ fn collect_search_matches_with_intent(
     let semantic_target = infer_semantic_symbol_target(query, &terms);
 
     let mut matches: Vec<SearchMatch> = Vec::new();
-    for entry in WalkDir::new(".")
-        .into_iter()
-        .filter_entry(|entry| !should_skip_entry(entry))
-        .filter_map(Result::ok)
-    {
-        if !entry.file_type().is_file() || !is_searchable_file(entry.path()) {
+    for path in super::search::walk_files(Path::new(".")).filter(|path| {
+        path.file_name()
+            .and_then(|name| name.to_str())
+            .is_none_or(|name| !should_skip_entry(name))
+    }) {
+        if !is_searchable_file(&path) {
             continue;
         }
 
-        let Ok(content) = std::fs::read_to_string(entry.path()) else {
+        let Ok(content) = std::fs::read_to_string(&path) else {
             continue;
         };
         let lower = content.to_ascii_lowercase();
@@ -291,17 +289,17 @@ fn collect_search_matches_with_intent(
             continue;
         }
 
-        let semantic_bonus = extract_rust_semantic_file(entry.path())
+        let semantic_bonus = extract_rust_semantic_file(&path)
             .map(|semantic| search_semantic_bonus(&semantic, semantic_target.as_deref(), intent))
             .unwrap_or(0);
-        let score = search_match_score(entry.path(), &lower, &file_matches, &terms, focus, intent)
+        let score = search_match_score(&path, &lower, &file_matches, &terms, focus, intent)
             + line_score
             + semantic_bonus;
         matches.push(SearchMatch {
             score,
-            path: entry.path().display().to_string(),
-            role: classify_file_role(entry.path()),
-            reasons: search_match_reasons(entry.path(), &lower, &terms, focus),
+            path: path.display().to_string(),
+            role: classify_file_role(&path),
+            reasons: search_match_reasons(&path, &lower, &terms, focus),
             snippets: file_matches,
         });
     }
@@ -1029,31 +1027,16 @@ async fn find_symbol_calls(symbol: &str) -> HarperResult<String> {
         symbol.magenta()
     );
 
-    let output = run_search_command(
-        "rg",
-        [
-            "-n",
-            "-F",
-            "--hidden",
-            "--glob",
-            "!target",
-            "--glob",
-            "!node_modules",
-            symbol,
-            ".",
-        ],
-    )
-    .or_else(|_| run_search_command("grep", ["-R", "-n", "-F", symbol, "."]))?;
-
-    if output.status.code() == Some(1) || output.stdout.is_empty() {
+    let hits = super::search::search_files(Path::new("."), symbol);
+    if hits.is_empty() {
         Ok(format!("No callers found for symbol: {}", symbol))
-    } else if !output.status.success() {
-        Err(HarperError::Command(format!(
-            "Search failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        )))
     } else {
-        let result = String::from_utf8_lossy(&output.stdout);
+        let mut result = String::new();
+        for (path, lines) in &hits {
+            for (line_no, line) in lines {
+                result.push_str(&format!("{}:{}:{}\n", path.display(), line_no, line));
+            }
+        }
         Ok(format!("Callers found for {}:\n{}", symbol, result))
     }
 }
@@ -1066,37 +1049,14 @@ async fn trace_relationship(x: &str, y: &str) -> HarperResult<String> {
         y.magenta()
     );
 
-    let output = run_search_command(
-        "rg",
-        [
-            "-l",
-            "-F",
-            "--hidden",
-            "--glob",
-            "!target",
-            "--glob",
-            "!node_modules",
-            x,
-            ".",
-        ],
-    )
-    .or_else(|_| run_search_command("grep", ["-l", "-R", "-F", x, "."]))?;
-
-    if output.status.code() != Some(0) && output.status.code() != Some(1) {
-        return Err(HarperError::Command(format!(
-            "Search failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        )));
-    }
-
-    let x_files = String::from_utf8_lossy(&output.stdout);
+    let x_files = super::search::files_with_matches(Path::new("."), x);
     let mut relationships = Vec::new();
 
-    for file in x_files.lines() {
-        let has_y = file_contains_symbol(file, y)?;
+    for file in &x_files {
+        let has_y = file_contains_symbol(&file.to_string_lossy(), y)?;
 
         if has_y {
-            relationships.push(format!("Found both in: {}", file));
+            relationships.push(format!("Found both in: {}", file.display()));
         }
     }
 
@@ -1153,7 +1113,7 @@ async fn clone_temp_context(
     }
 
     // Analyze the cloned repo briefly
-    let file_count = walkdir::WalkDir::new(path).into_iter().count();
+    let file_count = super::search::walk_files(Path::new(path)).count();
 
     Ok(format!(
         "Cloned {} to temporary directory. Found {} items for context.",
@@ -1161,39 +1121,12 @@ async fn clone_temp_context(
     ))
 }
 
-fn run_search_command<I, S>(program: &str, args: I) -> HarperResult<std::process::Output>
-where
-    I: IntoIterator<Item = S>,
-    S: AsRef<OsStr>,
-{
-    Command::new(program)
-        .args(args)
-        .output()
-        .map_err(|e| HarperError::Command(format!("{} failed: {}", program, e)))
-}
-
 fn file_contains_symbol(file: &str, symbol: &str) -> HarperResult<bool> {
-    let output = run_search_command("rg", ["-q", "-F", symbol, file])
-        .or_else(|_| run_search_command("grep", ["-q", "-F", symbol, file]))?;
-
-    match output.status.code() {
-        Some(0) => Ok(true),
-        Some(1) => Ok(false),
-        _ => Err(HarperError::Command(format!(
-            "Failed to inspect {}: {}",
-            Path::new(file).display(),
-            String::from_utf8_lossy(&output.stderr).trim()
-        ))),
-    }
+    Ok(super::search::file_contains(Path::new(file), symbol))
 }
 
-fn should_skip_entry(entry: &DirEntry) -> bool {
-    entry.file_name().to_str().is_none_or(|name| {
-        matches!(
-            name,
-            ".git" | "target" | "node_modules" | ".harper" | "search" | "site" | "website" | "docs"
-        )
-    })
+fn should_skip_entry(name: &str) -> bool {
+    matches!(name, "search" | "site" | "website" | "docs")
 }
 
 fn is_searchable_file(path: &Path) -> bool {
@@ -1739,14 +1672,15 @@ fn extract_rust_semantic_file(path: &Path) -> Option<RustSemanticFile> {
 }
 
 fn collect_workspace_rust_semantics() -> Vec<RustSemanticFile> {
-    WalkDir::new(".")
-        .into_iter()
-        .filter_entry(|entry| !should_skip_entry(entry))
-        .filter_map(Result::ok)
-        .filter(|entry| entry.file_type().is_file())
-        .filter(|entry| entry.path().extension().and_then(|ext| ext.to_str()) == Some("rs"))
-        .filter(|entry| is_searchable_file(entry.path()))
-        .filter_map(|entry| extract_rust_semantic_file(entry.path()))
+    super::search::walk_files(Path::new("."))
+        .filter(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_none_or(|name| !should_skip_entry(name))
+        })
+        .filter(|path| path.extension().and_then(|ext| ext.to_str()) == Some("rs"))
+        .filter(|path| is_searchable_file(path))
+        .filter_map(|path| extract_rust_semantic_file(&path))
         .collect()
 }
 

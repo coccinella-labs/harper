@@ -43,6 +43,9 @@ allow = [
     "Unicode-DFS-2016",
     "NCSA",
     "WTFPL",
+    # Unlicense: public-domain dedication used by ripgrep's `ignore` traversal
+    # library (replaces walkdir plus rg/grep shell-outs, see #816).
+    "Unlicense",
 ]
 
 [ sources ]
