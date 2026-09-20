@@ -217,4 +217,4 @@ jobs:
       shell: pwsh
       run: |
         $env:CARGO_BAZEL_REPIN = "true"
-        bazel run :harper_bin -- --version
+        bazel run :harper_bin '--' --version
