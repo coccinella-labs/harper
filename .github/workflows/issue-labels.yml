@@ -65,20 +65,36 @@ jobs:
               if (pattern.test(text)) wanted.add(label);
             }
 
-            if (wanted.size === 0) {
-              core.info(`No keyword labels match issue #${number}`);
-              return;
-            }
-
             const { owner, repo } = context.repo;
             const current = await github.rest.issues.get({ owner, repo, issue_number: number });
-            const existing = new Set(current.data.labels.map((label) => label.name));
-            const missing = [...wanted].filter((label) => !existing.has(label));
 
-            if (missing.length === 0) {
-              core.info(`Issue #${number} already carries all matched labels`);
-              return;
+            if (wanted.size > 0) {
+              const existing = new Set(current.data.labels.map((label) => label.name));
+              const missing = [...wanted].filter((label) => !existing.has(label));
+
+              if (missing.length === 0) {
+                core.info(`Issue #${number} already carries all matched labels`);
+              } else {
+                await github.rest.issues.addLabels({ owner, repo, issue_number: number, labels: missing });
+                core.info(`Added to issue #${number}: ${missing.join(', ')}`);
+              }
+            } else {
+              core.info(`No keyword labels match issue #${number}`);
             }
 
-            await github.rest.issues.addLabels({ owner, repo, issue_number: number, labels: missing });
-            core.info(`Added to issue #${number}: ${missing.join(', ')}`);
+            // Mirror assign-pr-milestone.yml tiers so issues triage like PRs.
+            // Never overwrite a milestone a human set.
+            if (!current.data.milestone) {
+              const labelText = [...wanted].join(' ');
+              const haystack = `${text} ${labelText}`;
+              let milestone = 5;
+              if (/ci|build|release|workflow|homebrew|lockfile|cargo\.lock|commitlint|pr[ -]?title|bazel|dependabot|deps|dependencies/.test(haystack)) {
+                milestone = 4;
+              } else if (/auth|planning|plan|agents?|routing|intent|mcp|sandbox|approval|workspace|account|session|profile|sse|server/.test(haystack)) {
+                milestone = 6;
+              }
+              await github.rest.issues.update({ owner, repo, issue_number: number, milestone });
+              core.info(`Assigned issue #${number} to milestone ${milestone}`);
+            } else {
+              core.info(`Issue #${number} already has a milestone`);
+            }
