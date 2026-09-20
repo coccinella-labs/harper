@@ -87,10 +87,18 @@ jobs:
             if (!current.data.milestone) {
               const labelText = [...wanted].join(' ');
               const haystack = `${text} ${labelText}`;
+              const ciDeps = new RegExp(
+                'ci|build|release|workflow|homebrew|lockfile|cargo\\.lock'
+                + '|commitlint|pr[ -]?title|bazel|dependabot|deps|dependencies',
+              );
+              const serverAgent = new RegExp(
+                'auth|planning|plan|agents?|routing|intent|mcp|sandbox'
+                + '|approval|workspace|account|session|profile|sse|server',
+              );
               let milestone = 5;
-              if (/ci|build|release|workflow|homebrew|lockfile|cargo\.lock|commitlint|pr[ -]?title|bazel|dependabot|deps|dependencies/.test(haystack)) {
+              if (ciDeps.test(haystack)) {
                 milestone = 4;
-              } else if (/auth|planning|plan|agents?|routing|intent|mcp|sandbox|approval|workspace|account|session|profile|sse|server/.test(haystack)) {
+              } else if (serverAgent.test(haystack)) {
                 milestone = 6;
               }
               await github.rest.issues.update({ owner, repo, issue_number: number, milestone });
