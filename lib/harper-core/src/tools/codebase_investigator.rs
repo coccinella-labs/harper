@@ -1892,7 +1892,7 @@ impl<'ast> Visit<'ast> for RustSemanticVisitor {
 
     fn visit_item_impl(&mut self, node: &'ast syn::ItemImpl) {
         let previous_trait = self.current_impl_trait.take();
-        if let Some((_, path, _)) = &node.trait_ {
+        if let Some((path, _)) = &node.trait_ {
             let trait_path = rust_path_name(path);
             if let Some(segment) = path.segments.last() {
                 self.imports.insert(segment.ident.to_string());
