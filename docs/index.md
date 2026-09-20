@@ -8,7 +8,7 @@ Harper is a terminal-first AI agent for code and shell work. It keeps command ex
 - **Approval gates**: Sensitive or higher-risk operations can require confirmation
 - **Session and plan tracking**: Conversations, titles, audit logs, and plans persist with the session
 - **Native shell commands**: Use commands such as `plan show`, `session list`, `config show`, `update check`, and explicit `run ...`
-- **Provider support**: Works with OpenAI, Gemini, SambaNova, Cerebras, and Ollama
+- **Provider support**: Works with OpenAI, Gemini, SambaNova, and Ollama
 - **TUI and batch flows**: Use the interactive terminal UI or verify behavior headlessly with `harper-batch`
 
 ## Getting Started

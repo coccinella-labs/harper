@@ -25,7 +25,6 @@ Store an API key in your keychain:
 harper auth login --provider openai
 harper auth login --provider sambanova
 harper auth login --provider gemini
-harper auth login --provider cerebras
 ```
 
 You'll be prompted to enter your API key.
@@ -36,7 +35,6 @@ Remove an API key from your keychain:
 
 ```bash
 harper auth logout --provider openai
-harper auth logout --provider cerebras
 ```
 
 ## Setup
