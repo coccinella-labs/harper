@@ -81,55 +81,6 @@ pub mod test_data {
     pub const SHORT_DATA_LEN: usize = 20;
 }
 
-/// Menu choices
-pub mod menu {
-    /// Start new chat session
-    #[allow(dead_code)]
-    pub const START_CHAT: &str = "1";
-
-    /// List previous sessions
-    #[allow(dead_code)]
-    pub const LIST_SESSIONS: &str = "2";
-
-    /// View session history
-    #[allow(dead_code)]
-    pub const VIEW_SESSION: &str = "3";
-
-    /// Export session history
-    #[allow(dead_code)]
-    pub const EXPORT_SESSION: &str = "4";
-
-    /// Quit application
-    #[allow(dead_code)]
-    pub const QUIT: &str = "5";
-}
-
-/// UI messages
-pub mod messages {
-    /// Exit message when quitting the application
-    #[allow(dead_code)]
-    pub const GOODBYE: &str = "Goodbye";
-
-    /// Menu title
-    #[allow(dead_code)]
-    pub const MAIN_MENU_TITLE: &str = "Harper";
-
-    /// Prompt for user input
-    #[allow(dead_code)]
-    pub const ENTER_CHOICE: &str = "Select › ";
-}
-
-/// Exit commands
-pub mod exit_commands {
-    /// Exit command
-    #[allow(dead_code)]
-    pub const EXIT: &str = "exit";
-
-    /// Quit command
-    #[allow(dead_code)]
-    pub const QUIT: &str = "quit";
-}
-
 /// Tool commands
 pub mod tools {
     /// Command execution prefix

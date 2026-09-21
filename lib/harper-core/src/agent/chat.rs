@@ -3816,7 +3816,16 @@ fn parse_audit_params(args: Option<&str>) -> HarperResult<AuditParams> {
                 "approved" => AuditApprovalFilter::Approved,
                 "rejected" => AuditApprovalFilter::Rejected,
                 "auto" => AuditApprovalFilter::Auto,
-                _ => unreachable!(),
+                // Defensive: the outer matches! narrows to the three values
+                // above, so this arm is unreachable through parse_audit_params
+                // today. It exists so a future filter-list edit degrades to
+                // an error instead of a panic.
+                other => {
+                    return Err(HarperError::Api(format!(
+                        "Unknown approval filter '{}'. Use approved, rejected, or auto.",
+                        other
+                    )))
+                }
             });
             continue;
         }
