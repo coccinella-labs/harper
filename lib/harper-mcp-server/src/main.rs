@@ -39,7 +39,12 @@ impl RateLimiter {
         let now = Instant::now();
         let window = Duration::from_secs(RATE_LIMIT_WINDOW_SECS);
 
-        let mut requests = self.requests.lock().expect("Failed to lock rate limiter");
+        // Recover from lock poisoning rather than crashing the server:
+        // a poisoned lock still guards valid data for a rate limiter.
+        let mut requests = self
+            .requests
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
 
         // Clean up expired entries
         for v in requests.values_mut() {
