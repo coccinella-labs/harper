@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+# Copyright 2026 coccinella-labs
+#
+# Licensed under the Apache License, Version 2.0
+#
+name: Proof
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  proof:
+    name: Proof
+    runs-on: ubuntu-latest
+    if: github.repository_owner == 'coccinella-labs'
+    steps:
+      - id: app-token
+        name: Create Harper app token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.HARPER_APP_ID }}
+          private-key: ${{ secrets.HARPER_APP_PRIVATE_KEY }}
+          permission-contents: read
+          permission-pull-requests: write
+
+      - uses: coccinella-labs/proof@v1
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
