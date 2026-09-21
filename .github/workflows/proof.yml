@@ -17,7 +17,9 @@ jobs:
   proof:
     name: Proof
     runs-on: ubuntu-latest
-    if: github.repository_owner == 'coccinella-labs'
+    if: >-
+      github.repository_owner == 'coccinella-labs' &&
+      github.event.pull_request.user.login != 'dependabot[bot]'
     steps:
       - id: app-token
         name: Create Harper app token
