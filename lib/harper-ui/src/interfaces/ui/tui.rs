@@ -541,6 +541,25 @@ async fn start_tui_auth_login(app: &mut TuiApp, auth_client: &reqwest::Client, p
     }
 }
 
+/// Restore the terminal if the TUI panics, so the user's shell is never
+/// left bricked (hidden cursor, raw mode, alternate screen). Every step is
+/// best-effort: a hook must not panic itself.
+fn install_panic_hook() {
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let _ = disable_raw_mode();
+        let mut stdout = std::io::stdout();
+        let _ = execute!(
+            stdout,
+            LeaveAlternateScreen,
+            DisableBracketedPaste,
+            DisableMouseCapture,
+            cursor::Show
+        );
+        default_hook(info);
+    }));
+}
+
 pub async fn run_tui(
     conn: &Connection,
     api_config: &ApiConfig,
@@ -551,6 +570,7 @@ pub async fn run_tui(
     options: TuiRunOptions,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Set up terminal
+    install_panic_hook();
     enable_raw_mode()?;
     let mut stdout = std::io::stdout();
     execute!(
