@@ -152,10 +152,20 @@ impl CacheAlignedBuffer {
         self.len == 0
     }
 
+    /// # Safety
+    ///
+    /// `lines` always holds at least one 64-byte `CacheLine` (all constructors
+    /// reserve via `ensure_capacity`), so `lines[0]` plus `len` bytes stays
+    /// inside the allocation. Callers hold `&self`, so no `&mut` reallocation
+    /// can invalidate the slice while it is alive.
     pub fn as_slice(&self) -> &[u8] {
         unsafe { std::slice::from_raw_parts(self.raw_ptr(), self.len) }
     }
 
+    /// # Safety
+    ///
+    /// Same allocation guarantee as `as_slice`, plus exclusive `&mut self`
+    /// access, so no live shared slice can alias this mutable one.
     pub fn as_mut_slice(&mut self) -> &mut [u8] {
         unsafe { std::slice::from_raw_parts_mut(self.raw_mut_ptr(), self.len) }
     }
