@@ -44,7 +44,7 @@ jobs:
       - name: Checkout private cla-bot
         uses: actions/checkout@v4
         with:
-          repository: bniladridas/cla-bot
+          repository: coccinella-labs/clabot
           token: ${{ secrets.CLA_BOT_TOKEN }}
           path: cla-bot
 
