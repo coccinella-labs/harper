@@ -1897,7 +1897,7 @@ dependencies = [
 
 [[package]]
 name = "harper-core"
-version = "0.22.2"
+version = "0.22.3"
 dependencies = [
  "aes 0.8.4",
  "arboard",
@@ -1965,7 +1965,7 @@ dependencies = [
 
 [[package]]
 name = "harper-mcp-server"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "axum",
  "chrono",
@@ -1993,7 +1993,7 @@ dependencies = [
 
 [[package]]
 name = "harper-ui"
-version = "0.22.2"
+version = "0.22.3"
 dependencies = [
  "arboard",
  "async-trait",
@@ -2019,7 +2019,7 @@ dependencies = [
 
 [[package]]
 name = "harper-workspace"
-version = "0.23.2"
+version = "0.23.3"
 dependencies = [
  "assert_cmd",
  "criterion",
