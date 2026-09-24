@@ -18,7 +18,7 @@ edition = "2024"
 rust-version = "1.85.0"
 authors = ["Harper Contributors"]
 license = "MIT OR Apache-2.0"
-description = "MCP server for Harper"
+description = "Reference MCP server demonstrating the JSON-RPC surface Harper expects"
 repository = "https://github.com/coccinella-labs/harper"
 homepage = "https://github.com/coccinella-labs/harper"
 

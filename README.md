@@ -44,7 +44,7 @@ The project is organized into five workspace members:
 harper/
 ├── lib/harper-core/         # ChatService, ToolService, LLM providers, persistence
 ├── lib/harper-ui/           # TUI (ratatui), CLI, authentication (bins: harper, harper-batch)
-├── lib/harper-mcp-server/   # Model Context Protocol (MCP) server (demo server with echo and get_time)
+├── lib/harper-mcp-server/   # Reference MCP server (intentional demo: echo and get_time; see lib/harper-mcp-server/README.md)
 ├── lib/harper-sandbox/      # Process isolation (bwrap on Linux, sandbox-exec on macOS)
 └── lib/harper-firmware/     # Hardware abstractions (GPIO, I2C, SPI, UART), feature gated behind esp32, stm32, or raspberry_pi
 ```
