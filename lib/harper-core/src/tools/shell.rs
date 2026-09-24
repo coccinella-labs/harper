@@ -634,11 +634,15 @@ async fn execute_direct_once(
                 collected.push_str(&line);
                 collected.push('\n');
                 if let (Some(conn), Some(session_id)) = (&live_conn, session_id.as_deref()) {
-                    let _ = crate::tools::plan::append_active_plan_job_output(
-                        conn,
+                    persist_plan(
+                        "appending stdout",
                         session_id,
-                        &format!("{}\n", line),
-                        false,
+                        crate::tools::plan::append_active_plan_job_output(
+                            conn,
+                            session_id,
+                            &format!("{}\n", line),
+                            false,
+                        ),
                     );
                     if let Some(sink) = runtime_events.as_ref() {
                         let plan = crate::memory::storage::load_plan_state(conn, session_id)
@@ -677,11 +681,15 @@ async fn execute_direct_once(
                 collected.push_str(&line);
                 collected.push('\n');
                 if let (Some(conn), Some(session_id)) = (&live_conn, session_id.as_deref()) {
-                    let _ = crate::tools::plan::append_active_plan_job_output(
-                        conn,
+                    persist_plan(
+                        "appending stderr",
                         session_id,
-                        &format!("{}\n", line),
-                        true,
+                        crate::tools::plan::append_active_plan_job_output(
+                            conn,
+                            session_id,
+                            &format!("{}\n", line),
+                            true,
+                        ),
                     );
                     if let Some(sink) = runtime_events.as_ref() {
                         let plan = crate::memory::storage::load_plan_state(conn, session_id)
@@ -889,12 +897,16 @@ pub async fn execute_command(
         if let Some(ctx) =
             audit_ctx.and_then(|ctx| ctx.session_id.map(|session_id| (ctx.conn, session_id)))
         {
-            let _ = crate::tools::plan::start_plan_job(
-                ctx.0,
+            persist_plan(
+                "starting job",
                 ctx.1,
-                "run_command",
-                Some(command_str.to_string()),
-                PlanJobStatus::WaitingApproval,
+                crate::tools::plan::start_plan_job(
+                    ctx.0,
+                    ctx.1,
+                    "run_command",
+                    Some(command_str.to_string()),
+                    PlanJobStatus::WaitingApproval,
+                ),
             );
             emit_plan_update(runtime_events.as_ref(), ctx.0, ctx.1).await;
         }
@@ -935,10 +947,14 @@ pub async fn execute_command(
             if let Some(ctx) =
                 audit_ctx.and_then(|ctx| ctx.session_id.map(|session_id| (ctx.conn, session_id)))
             {
-                let _ = crate::tools::plan::finish_active_plan_job(
-                    ctx.0,
+                persist_plan(
+                    "finishing blocked job",
                     ctx.1,
-                    PlanJobStatus::Blocked,
+                    crate::tools::plan::finish_active_plan_job(
+                        ctx.0,
+                        ctx.1,
+                        PlanJobStatus::Blocked,
+                    ),
                 );
                 emit_plan_update(runtime_events.as_ref(), ctx.0, ctx.1).await;
             }
@@ -982,17 +998,21 @@ pub async fn execute_command(
             .and_then(|plan| plan.runtime)
             .and_then(|runtime| runtime.active_job_id)
             .is_some();
-        let _ = if has_active_job {
-            crate::tools::plan::update_active_plan_job(ctx.0, ctx.1, PlanJobStatus::Running)
-        } else {
-            crate::tools::plan::start_plan_job(
-                ctx.0,
-                ctx.1,
-                "run_command",
-                Some(command_str.to_string()),
-                PlanJobStatus::Running,
-            )
-        };
+        persist_plan(
+            "marking active job running",
+            ctx.1,
+            if has_active_job {
+                crate::tools::plan::update_active_plan_job(ctx.0, ctx.1, PlanJobStatus::Running)
+            } else {
+                crate::tools::plan::start_plan_job(
+                    ctx.0,
+                    ctx.1,
+                    "run_command",
+                    Some(command_str.to_string()),
+                    PlanJobStatus::Running,
+                )
+            },
+        );
         emit_plan_update(runtime_events.as_ref(), ctx.0, ctx.1).await;
     }
 
@@ -1052,16 +1072,20 @@ pub async fn execute_command(
             if let Some(ctx) =
                 audit_ctx.and_then(|ctx| ctx.session_id.map(|session_id| (ctx.conn, session_id)))
             {
-                let _ = crate::tools::plan::finish_active_plan_job_with_output(
-                    ctx.0,
+                persist_plan(
+                    "finishing job",
                     ctx.1,
-                    if attempt_result.success {
-                        PlanJobStatus::Succeeded
-                    } else {
-                        PlanJobStatus::Failed
-                    },
-                    attempt_result.output_preview,
-                    attempt_result.has_error_output,
+                    crate::tools::plan::finish_active_plan_job_with_output(
+                        ctx.0,
+                        ctx.1,
+                        if attempt_result.success {
+                            PlanJobStatus::Succeeded
+                        } else {
+                            PlanJobStatus::Failed
+                        },
+                        attempt_result.output_preview,
+                        attempt_result.has_error_output,
+                    ),
                 );
                 emit_plan_update(runtime_events.as_ref(), ctx.0, ctx.1).await;
             }
@@ -1084,13 +1108,20 @@ pub async fn execute_command(
         if let Some(ctx) =
             audit_ctx.and_then(|ctx| ctx.session_id.map(|session_id| (ctx.conn, session_id)))
         {
-            let _ = crate::tools::plan::record_active_plan_retry_followup(
-                ctx.0,
+            persist_plan(
+                "recording retry follow-up",
                 ctx.1,
-                Some(command_str.to_string()),
+                crate::tools::plan::record_active_plan_retry_followup(
+                    ctx.0,
+                    ctx.1,
+                    Some(command_str.to_string()),
+                ),
             );
-            let _ =
-                crate::tools::plan::update_active_plan_job(ctx.0, ctx.1, PlanJobStatus::Running);
+            persist_plan(
+                "marking retry running",
+                ctx.1,
+                crate::tools::plan::update_active_plan_job(ctx.0, ctx.1, PlanJobStatus::Running),
+            );
             emit_plan_update(runtime_events.as_ref(), ctx.0, ctx.1).await;
         }
         emit_activity_update(
@@ -1100,6 +1131,12 @@ pub async fn execute_command(
         )
         .await;
         attempt += 1;
+    }
+}
+
+fn persist_plan(job: &str, session_id: &str, result: crate::core::error::HarperResult<()>) {
+    if let Err(err) = result {
+        log::warn!("plan persistence failed for session {session_id} while {job}: {err}");
     }
 }
 
