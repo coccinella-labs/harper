@@ -1,9 +1,0 @@
-{
-  "explanation": "Milestone 2 is partially complete. Plan progress is now tied to runtime jobs and blocked/failed states are surfaced, but the remaining transition rules are still narrower than a fully planner-driven execution system.",
-  "items": [
-    { "step": "Link steps to jobs", "status": "completed" },
-    { "step": "Advance steps on success", "status": "pending" },
-    { "step": "Handle blocked and failed runs", "status": "completed" },
-    { "step": "Refine plan transition rules", "status": "pending" }
-  ]
-}

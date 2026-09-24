@@ -23,6 +23,7 @@ This directory contains all automation that runs in GitHub Actions for the Harpe
 | CLA | `cla.yml` | Enforces the Contributor License Agreement via cla-bot. PR and issue writes run through the Harper app token. | PR opened/synchronized |
 | CodeQL | `codeql.yml` | Performs CodeQL static analysis on Rust (security scanning). | Push/PR to `main`, weekly cron |
 | Dependency Review | `dependency-review.yml` | Uses GitHub's dependency-review action on PRs. | PR events |
+| DevSkim | `devskim.yml` | Runs Microsoft DevSkim pattern scanning and uploads SARIF to the Security tab alongside CodeQL. | Push/PR to `main`, weekly cron |
 | Docs | `docs.yml` | Builds mkdocs documentation and deploys to GitHub Pages. | Push/PR touching docs |
 | PR Title | `fix-pr-title.yml` | Rewrites PR titles into `[scope] message` format via `coccinella-labs/title@v1`. Title edits run through the Harper app token. | PR events on `main` |
 | Harper | `harper-check.yml` | Publishes a lightweight app-backed check so Harper automation appears as the Harper GitHub App in PR checks and on `main`. | PR target events, push to `main` |

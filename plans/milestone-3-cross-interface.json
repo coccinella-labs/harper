@@ -1,9 +1,0 @@
-{
-  "explanation": "Milestone 3 remains mostly open. Session state is more unified across TUI and HTTP surfaces, but dedicated runtime endpoints, streaming runtime delivery, and editable cross-interface plan actions are still unfinished.",
-  "items": [
-    { "step": "Add HTTP plan runtime endpoints", "status": "pending" },
-    { "step": "Stream API-side runtime events", "status": "pending" },
-    { "step": "Add UI plan editing actions", "status": "pending" },
-    { "step": "Keep clients in sync", "status": "pending" }
-  ]
-}

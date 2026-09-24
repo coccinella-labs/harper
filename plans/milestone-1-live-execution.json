@@ -1,9 +1,0 @@
-{
-  "explanation": "Milestone 1 is complete. Running work is now visible while a turn is active through streamed command output, runtime job state, and TUI command-output surfaces.",
-  "items": [
-    { "step": "Design command event model", "status": "completed" },
-    { "step": "Stream command output chunks", "status": "completed" },
-    { "step": "Add live output panel", "status": "completed" },
-    { "step": "Show job status summary", "status": "completed" }
-  ]
-}
