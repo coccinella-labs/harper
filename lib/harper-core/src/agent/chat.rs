@@ -965,6 +965,7 @@ impl<'a> ChatService<'a> {
         session_id: &str,
     ) -> Result<String, HarperError> {
         const MAX_TOOL_ROUNDS: usize = 4;
+        const MAX_GUIDANCE_TURNS: usize = 4;
 
         let client = Client::builder()
             .timeout(std::time::Duration::from_secs(90))
@@ -1112,11 +1113,13 @@ impl<'a> ChatService<'a> {
         // Forced retry fires at most once per message by design. After a
         // tool executes, dispatch produces a plain-language followup that
         // must be accepted as the final answer; resetting this latch would
-        // force past every followup and exhaust MAX_TOOL_ROUNDS on each
+        // force past every followup and exhaust MAX_GUIDANCE_TURNS on each
         // tool-requiring request. Batched tool calls in one response are
         // unaffected by this budget.
         let mut forced_tool_retry = false;
         let mut saw_retry_guidance = false;
+        let mut tool_rounds = 0usize;
+        let mut guidance_turns = 0usize;
         let mut loop_outcome = crate::core::plan::PlanLoopOutcome::Responded;
         let mut loop_feedback = Some("response delivered".to_string());
         let mut broke_out_of_rounds = false;
@@ -1180,7 +1183,7 @@ impl<'a> ChatService<'a> {
         let tool_call_source = self
             .tool_call_source
             .unwrap_or_else(|| ToolCallSource::from(&self.config.provider));
-        'round: for _ in 0..MAX_TOOL_ROUNDS {
+        'round: loop {
             let clean_response = Self::sanitize_model_response(&response);
             let mut tool_calls = parse_tool_calls(&clean_response, tool_call_source);
             for tool_call in &mut tool_calls {
@@ -1215,6 +1218,11 @@ impl<'a> ChatService<'a> {
                     &clean_response,
                     forced_tool_retry,
                 ) {
+                    if guidance_turns >= MAX_GUIDANCE_TURNS {
+                        broke_out_of_rounds = true;
+                        break;
+                    }
+                    guidance_turns += 1;
                     forced_tool_retry = true;
                     saw_retry_guidance = true;
                     history_for_llm.push(Message {
@@ -1269,6 +1277,7 @@ impl<'a> ChatService<'a> {
                         .then_some(persisted_authoring_scope.clone())
                 });
 
+            let mut charged_tool_round = false;
             for tool_call in &tool_calls {
                 let dedupe_key = tool_call.dedupe_key();
 
@@ -1281,6 +1290,14 @@ impl<'a> ChatService<'a> {
                     has_structured_authoring_plan,
                     &inspected_paths,
                 ) {
+                    if guidance_turns >= MAX_GUIDANCE_TURNS {
+                        loop_outcome = crate::core::plan::PlanLoopOutcome::Failed;
+                        loop_feedback =
+                            Some("guidance budget exhausted before safe authoring".to_string());
+                        broke_out_of_rounds = true;
+                        break 'round;
+                    }
+                    guidance_turns += 1;
                     saw_retry_guidance = true;
                     history_for_llm.push(Message {
                         role: "system".to_string(),
@@ -1299,16 +1316,26 @@ impl<'a> ChatService<'a> {
                     &injected_agents_guidance,
                 )? {
                     injected_agents_guidance.insert(dedupe_key.clone());
-                    history_for_llm.push(Message {
-                        role: "system".to_string(),
-                        content: agents_prompt,
-                    });
-                    self.emit_activity_update(
-                        session_id,
-                        Some(task_mode.model_activity_label().to_string()),
-                    );
-                    response = self.call_llm(&client, &history_for_llm).await?;
-                    continue 'round;
+                    if guidance_turns < MAX_GUIDANCE_TURNS {
+                        guidance_turns += 1;
+                        history_for_llm.push(Message {
+                            role: "system".to_string(),
+                            content: agents_prompt,
+                        });
+                        self.emit_activity_update(
+                            session_id,
+                            Some(task_mode.model_activity_label().to_string()),
+                        );
+                        response = self.call_llm(&client, &history_for_llm).await?;
+                        continue 'round;
+                    }
+                }
+                if !charged_tool_round {
+                    if tool_rounds >= MAX_TOOL_ROUNDS {
+                        break 'round;
+                    }
+                    tool_rounds += 1;
+                    charged_tool_round = true;
                 }
                 if executed_tool_calls.contains(&dedupe_key) {
                     if saw_retry_guidance {
