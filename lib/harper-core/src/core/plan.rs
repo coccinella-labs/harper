@@ -562,6 +562,17 @@ impl PlanRuntime {
             .and_then(|authoring| authoring.structured_plan.as_ref())
     }
 
+    pub fn authoring_validation_commands(&self) -> Vec<String> {
+        self.authoring_structured_plan()
+            .map(|plan| {
+                plan.validation_plan
+                    .iter()
+                    .map(|step| step.command.clone())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     pub fn mark_authoring_validated(&mut self) {
         let Some(authoring) = self.authoring.as_mut() else {
             return;

@@ -1487,7 +1487,10 @@ impl<'a> ChatService<'a> {
                             );
                         }
                         if tool_call.name == "run_command"
-                            && Self::is_authoring_validation_command(&tool_call.to_raw_string())
+                            && Self::is_authoring_validation_command(
+                                &tool_call.to_raw_string(),
+                                &Self::load_authoring_validation_commands(self.conn, session_id),
+                            )
                         {
                             let _ = crate::tools::plan::mark_plan_authoring_validated(
                                 self.conn, session_id,
@@ -2134,11 +2137,29 @@ impl<'a> ChatService<'a> {
         candidate
     }
 
-    fn is_authoring_validation_command(tool_call_json: &str) -> bool {
+    fn load_authoring_validation_commands(conn: &Connection, session_id: &str) -> Vec<String> {
+        crate::memory::storage::load_plan_state(conn, session_id)
+            .ok()
+            .flatten()
+            .and_then(|plan| plan.runtime)
+            .map(|runtime| runtime.authoring_validation_commands())
+            .unwrap_or_default()
+    }
+
+    fn is_authoring_validation_command(
+        tool_call_json: &str,
+        planned_validation_commands: &[String],
+    ) -> bool {
         let Some(command) = Self::extract_run_command_text(tool_call_json) else {
             return false;
         };
         let lower = command.to_ascii_lowercase();
+        if planned_validation_commands.iter().any(|planned| {
+            let planned_lower = planned.to_ascii_lowercase();
+            !planned_lower.is_empty() && lower.contains(planned_lower.as_str())
+        }) {
+            return true;
+        }
         lower.contains("cargo check")
             || lower.contains("cargo test")
             || lower.contains("cargo fmt")
@@ -4822,5 +4843,44 @@ mod tests {
         let debug = debug_turn(ExecutionStrategy::Auto, &[], "hi");
         assert_eq!(debug.task_mode, TaskMode::RespondOnly);
         assert!(debug.deterministic_intent.is_none());
+    }
+
+    #[test]
+    fn recognizes_planned_validation_command_not_in_lexical_list() {
+        let tool = r#"{"tool":"run_command","args":{"command":"just test"}}"#;
+        assert!(ChatService::is_authoring_validation_command(
+            tool,
+            &["just test".to_string()]
+        ));
+        assert!(!ChatService::is_authoring_validation_command(tool, &[]));
+    }
+
+    #[test]
+    fn recognizes_hardcoded_validation_command_without_plan() {
+        let tool = r#"{"tool":"run_command","args":{"command":"cargo check -p harper-core"}}"#;
+        assert!(ChatService::is_authoring_validation_command(tool, &[]));
+    }
+
+    #[test]
+    fn planned_validation_commands_come_from_structured_plan() {
+        let mut runtime = crate::core::plan::PlanRuntime::default();
+        runtime.set_authoring_structured_plan(crate::core::plan::StructuredAuthoringPlan {
+            primary_files: vec!["lib/a.rs".to_string()],
+            validation_plan: vec![crate::core::plan::AuthoringValidationStep {
+                command: "just test".to_string(),
+                scope: Some("narrow".to_string()),
+            }],
+            ..Default::default()
+        });
+        assert_eq!(
+            runtime.authoring_validation_commands(),
+            vec!["just test".to_string()]
+        );
+
+        let tool = r#"{"tool":"run_command","args":{"command":"just test"}}"#;
+        assert!(ChatService::is_authoring_validation_command(
+            tool,
+            &runtime.authoring_validation_commands()
+        ));
     }
 }
