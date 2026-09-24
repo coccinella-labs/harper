@@ -2364,6 +2364,8 @@ impl<'a> ChatService<'a> {
                 let response = crate::tools::filesystem::read_file(
                     &format!("[READ_FILE {}]", intent.path),
                     self.approver.clone(),
+                    self.runtime_events.as_ref(),
+                    Some(session_id),
                 )
                 .await?;
                 Ok(Some(("read_file".to_string(), response)))
@@ -2373,6 +2375,8 @@ impl<'a> ChatService<'a> {
                     &intent.path,
                     &intent.content,
                     self.approver.clone(),
+                    self.runtime_events.as_ref(),
+                    Some(session_id),
                 )
                 .await?;
                 Ok(Some(("write_file".to_string(), response)))
