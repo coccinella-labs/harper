@@ -1051,31 +1051,18 @@ impl<'a> ChatService<'a> {
                 crate::core::plan::PlanLoopStage::Executing,
                 Some("executing deterministic action".to_string()),
             );
-            if let Some((tool_name, tool_content)) = self
-                .try_handle_deterministic_intent(history, &last_user_msg, session_id)
+            if let Some(response) = self
+                .complete_via_deterministic_intent(
+                    &client,
+                    &mut history_for_llm,
+                    history,
+                    session_id,
+                    &last_user_msg,
+                    true,
+                )
                 .await?
             {
-                self.emit_activity_update(session_id, Some("summarizing result".to_string()));
-                self.persist_loop_stage(
-                    session_id,
-                    crate::core::plan::PlanLoopStage::Feedback,
-                    Some("summarizing result".to_string()),
-                );
-                self.persist_loop_outcome(
-                    session_id,
-                    crate::core::plan::PlanLoopOutcome::Succeeded,
-                    Some("deterministic action completed".to_string()),
-                );
-                return self
-                    .summarize_deterministic_tool_result(
-                        &client,
-                        &mut history_for_llm,
-                        history,
-                        session_id,
-                        &tool_name,
-                        &tool_content,
-                    )
-                    .await;
+                return Ok(response);
             }
         }
 
@@ -1101,20 +1088,18 @@ impl<'a> ChatService<'a> {
                 if matches!(task_mode, TaskMode::RespondOnly) {
                     return Ok(self.persist_backend_unavailable(session_id));
                 }
-                if let Some((tool_name, tool_content)) = self
-                    .try_handle_deterministic_intent(history, &last_user_msg, session_id)
+                if let Some(response) = self
+                    .complete_via_deterministic_intent(
+                        &client,
+                        &mut history_for_llm,
+                        history,
+                        session_id,
+                        &last_user_msg,
+                        false,
+                    )
                     .await?
                 {
-                    return self
-                        .summarize_deterministic_tool_result(
-                            &client,
-                            &mut history_for_llm,
-                            history,
-                            session_id,
-                            &tool_name,
-                            &tool_content,
-                        )
-                        .await;
+                    return Ok(response);
                 }
                 return Ok(self.persist_backend_unavailable(session_id));
             }
@@ -1211,20 +1196,18 @@ impl<'a> ChatService<'a> {
                     )
                     && Self::response_looks_like_generic_capability_refusal(&clean_response)
                 {
-                    if let Some((tool_name, tool_content)) = self
-                        .try_handle_deterministic_intent(history, &last_user_msg, session_id)
+                    if let Some(response) = self
+                        .complete_via_deterministic_intent(
+                            &client,
+                            &mut history_for_llm,
+                            history,
+                            session_id,
+                            &last_user_msg,
+                            false,
+                        )
                         .await?
                     {
-                        return self
-                            .summarize_deterministic_tool_result(
-                                &client,
-                                &mut history_for_llm,
-                                history,
-                                session_id,
-                                &tool_name,
-                                &tool_content,
-                            )
-                            .await;
+                        return Ok(response);
                     }
                 }
                 if let Some(required_tool) = Self::forced_tool_retry_target(
@@ -1251,24 +1234,18 @@ impl<'a> ChatService<'a> {
                             if matches!(task_mode, TaskMode::RespondOnly) {
                                 return Ok(self.persist_backend_unavailable(session_id));
                             }
-                            if let Some((tool_name, tool_content)) = self
-                                .try_handle_deterministic_intent(
+                            if let Some(response) = self
+                                .complete_via_deterministic_intent(
+                                    &client,
+                                    &mut history_for_llm,
                                     history,
-                                    &last_user_msg,
                                     session_id,
+                                    &last_user_msg,
+                                    false,
                                 )
                                 .await?
                             {
-                                return self
-                                    .summarize_deterministic_tool_result(
-                                        &client,
-                                        &mut history_for_llm,
-                                        history,
-                                        session_id,
-                                        &tool_name,
-                                        &tool_content,
-                                    )
-                                    .await;
+                                return Ok(response);
                             }
                             return Ok(self.persist_backend_unavailable(session_id));
                         }
@@ -2353,6 +2330,47 @@ impl<'a> ChatService<'a> {
                 | "this command"
                 | "the command"
         )
+    }
+
+    async fn complete_via_deterministic_intent(
+        &mut self,
+        client: &Client,
+        history_for_llm: &mut Vec<Message>,
+        history: &mut Vec<Message>,
+        session_id: &str,
+        last_user_msg: &str,
+        persist_success: bool,
+    ) -> Result<Option<String>, HarperError> {
+        let Some((tool_name, tool_content)) = self
+            .try_handle_deterministic_intent(history, last_user_msg, session_id)
+            .await?
+        else {
+            return Ok(None);
+        };
+        if persist_success {
+            self.emit_activity_update(session_id, Some("summarizing result".to_string()));
+            self.persist_loop_stage(
+                session_id,
+                crate::core::plan::PlanLoopStage::Feedback,
+                Some("summarizing result".to_string()),
+            );
+            self.persist_loop_outcome(
+                session_id,
+                crate::core::plan::PlanLoopOutcome::Succeeded,
+                Some("deterministic action completed".to_string()),
+            );
+        }
+        Ok(Some(
+            self.summarize_deterministic_tool_result(
+                client,
+                history_for_llm,
+                history,
+                session_id,
+                &tool_name,
+                &tool_content,
+            )
+            .await?,
+        ))
     }
 
     async fn try_handle_deterministic_intent(
