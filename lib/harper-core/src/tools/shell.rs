@@ -57,6 +57,139 @@ pub enum CommandRetryPolicy {
     Safe,
 }
 
+/// Machine-readable reason a command was blocked by static policy checks.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "reason")]
+pub enum PolicyDenyReason {
+    EmptyCommand,
+    DangerousMetacharacters,
+    DangerousPattern { pattern: String },
+    BlockedByExecPolicy { command: String },
+}
+
+impl PolicyDenyReason {
+    pub fn message(&self) -> String {
+        match self {
+            Self::EmptyCommand => "No command provided".to_string(),
+            Self::DangerousMetacharacters => {
+                "Command contains potentially dangerous shell metacharacters (like ;, |, &) or newlines. \
+                 Command chaining and redirection are not allowed for security.".to_string()
+            }
+            Self::DangerousPattern { pattern } => format!(
+                "Command contains potentially dangerous pattern: '{}'. \
+                 This command is not allowed for security reasons.",
+                pattern
+            ),
+            Self::BlockedByExecPolicy { command } => {
+                format!("Command '{}' is blocked by exec policy.", command)
+            }
+        }
+    }
+
+    fn audit_status(&self) -> &'static str {
+        match self {
+            Self::EmptyCommand => "invalid",
+            _ => "blocked",
+        }
+    }
+}
+
+/// Typed policy verdict for whether a command may proceed past static checks.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "verdict")]
+pub enum PolicyVerdict {
+    Allow,
+    Deny(PolicyDenyReason),
+}
+
+impl PolicyVerdict {
+    #[must_use]
+    pub fn is_allowed(&self) -> bool {
+        matches!(self, Self::Allow)
+    }
+}
+
+/// Machine-readable reason approval is required for a command.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ApprovalRequireReason {
+    StrictProfile,
+    NotAllowlisted,
+    IntentRequiresNetwork,
+    IntentWritesOutsideWritableDirs,
+}
+
+/// Typed approval gate decision for a command.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "decision")]
+pub enum ApprovalRequirement {
+    NotRequired,
+    Required(ApprovalRequireReason),
+}
+
+impl ApprovalRequirement {
+    #[must_use]
+    pub fn requires_approval(&self) -> bool {
+        matches!(self, Self::Required(_))
+    }
+}
+
+/// Typed outcome of the approval prompt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ApprovalOutcome {
+    AutoApproved,
+    Approved,
+    Rejected,
+}
+
+impl ApprovalOutcome {
+    #[must_use]
+    pub fn is_approved(&self) -> bool {
+        matches!(self, Self::AutoApproved | Self::Approved)
+    }
+
+    pub const REJECTED_TOOL_CONTENT: &'static str = "Command execution cancelled by user";
+
+    #[must_use]
+    pub fn tool_content(&self) -> Option<&'static str> {
+        match self {
+            Self::Rejected => Some(Self::REJECTED_TOOL_CONTENT),
+            Self::AutoApproved | Self::Approved => None,
+        }
+    }
+}
+
+/// Machine-readable reason the sandbox rejected a command.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "reason")]
+pub enum SandboxRejectReason {
+    BackendUnavailable(String),
+    ExecutionFailed(String),
+    CommandBlocked(String),
+    PathBlocked(String),
+    NetworkBlocked,
+    Timeout(u64),
+    Config(String),
+    Io(String),
+}
+
+/// Typed result of the sandbox step for a command execution path.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "result")]
+pub enum SandboxStepResult {
+    Disabled,
+    Accepted { backend: String },
+    Rejected(SandboxRejectReason),
+}
+
+impl SandboxStepResult {
+    #[must_use]
+    pub fn is_accepted(&self) -> bool {
+        matches!(self, Self::Accepted { .. })
+    }
+}
+
 struct CommandAttemptResult {
     output_text: String,
     success: bool,
@@ -472,13 +605,15 @@ fn writes_within_configured_writable_dirs(
     })
 }
 
-fn approval_required_for_command(
+fn approval_requirement_for_command(
     exec_policy: &ExecPolicyConfig,
     command_str: &str,
     intent: Option<&CommandSandboxIntent>,
-) -> bool {
+) -> ApprovalRequirement {
     match exec_policy.effective_approval_profile() {
-        ApprovalProfile::Strict => true,
+        ApprovalProfile::Strict => {
+            ApprovalRequirement::Required(ApprovalRequireReason::StrictProfile)
+        }
         ApprovalProfile::AllowListed => {
             let allowlisted = exec_policy
                 .allowed_commands
@@ -490,9 +625,111 @@ fn approval_required_for_command(
                     || (!intent.declared_write_paths.is_empty()
                         && !writes_within_configured_writable_dirs(exec_policy, intent))
             });
-            !allowlisted || intent_requires_approval
+            if allowlisted && !intent_requires_approval {
+                ApprovalRequirement::NotRequired
+            } else if intent.is_some_and(|intent| intent.requires_network) {
+                ApprovalRequirement::Required(ApprovalRequireReason::IntentRequiresNetwork)
+            } else if intent.is_some_and(|intent| {
+                !intent.declared_write_paths.is_empty()
+                    && !writes_within_configured_writable_dirs(exec_policy, intent)
+            }) {
+                ApprovalRequirement::Required(
+                    ApprovalRequireReason::IntentWritesOutsideWritableDirs,
+                )
+            } else {
+                ApprovalRequirement::Required(ApprovalRequireReason::NotAllowlisted)
+            }
         }
-        ApprovalProfile::AllowAll => false,
+        ApprovalProfile::AllowAll => ApprovalRequirement::NotRequired,
+    }
+}
+
+const DANGEROUS_CHARS: [char; 11] = [';', '|', '&', '`', '$', '(', ')', '<', '>', '\n', '\r'];
+
+const DANGEROUS_PATTERNS: [&str; 20] = [
+    "rm -rf",
+    "rmdir",
+    "del ",
+    "fdisk",
+    "mkfs",
+    "dd if=",
+    "shutdown",
+    "reboot",
+    "halt",
+    "poweroff",
+    "sudo",
+    "su ",
+    "chmod 777",
+    "chown root",
+    "passwd",
+    "/etc/",
+    "/bin/",
+    "/sbin/",
+    "/usr/bin/",
+    "/usr/sbin/",
+];
+
+fn evaluate_command_policy(exec_policy: &ExecPolicyConfig, command_str: &str) -> PolicyVerdict {
+    if command_str.is_empty() {
+        return PolicyVerdict::Deny(PolicyDenyReason::EmptyCommand);
+    }
+
+    if command_str.chars().any(|c| DANGEROUS_CHARS.contains(&c)) {
+        return PolicyVerdict::Deny(PolicyDenyReason::DangerousMetacharacters);
+    }
+
+    for pattern in DANGEROUS_PATTERNS {
+        if command_str.contains(pattern) {
+            return PolicyVerdict::Deny(PolicyDenyReason::DangerousPattern {
+                pattern: pattern.to_string(),
+            });
+        }
+    }
+
+    if let Some(blocked) = &exec_policy.blocked_commands {
+        if blocked.iter().any(|cmd| command_str.starts_with(cmd)) {
+            return PolicyVerdict::Deny(PolicyDenyReason::BlockedByExecPolicy {
+                command: command_str.to_string(),
+            });
+        }
+    }
+
+    PolicyVerdict::Allow
+}
+
+fn sandbox_step_result(
+    exec_policy: &ExecPolicyConfig,
+    sandbox: Option<&Sandbox>,
+) -> SandboxStepResult {
+    let Some(sandbox) = sandbox else {
+        return SandboxStepResult::Disabled;
+    };
+    let config = exec_policy.effective_sandbox_config();
+    if !config.enabled.unwrap_or(false) {
+        return SandboxStepResult::Disabled;
+    }
+    SandboxStepResult::Accepted {
+        backend: sandbox.backend_name().to_string(),
+    }
+}
+
+fn sandbox_reject_reason(err: &harper_sandbox::SandboxError) -> SandboxRejectReason {
+    use harper_sandbox::SandboxError;
+    match err {
+        SandboxError::BackendUnavailable(msg) => {
+            SandboxRejectReason::BackendUnavailable(msg.clone())
+        }
+        SandboxError::ExecutionFailed(msg) => SandboxRejectReason::ExecutionFailed(msg.clone()),
+        SandboxError::CommandBlocked { command } => {
+            SandboxRejectReason::CommandBlocked(command.clone())
+        }
+        SandboxError::PathBlocked { path } => {
+            SandboxRejectReason::PathBlocked(path.display().to_string())
+        }
+        SandboxError::NetworkBlocked => SandboxRejectReason::NetworkBlocked,
+        SandboxError::Timeout { timeout_secs } => SandboxRejectReason::Timeout(*timeout_secs),
+        SandboxError::ConfigError(msg) => SandboxRejectReason::Config(msg.clone()),
+        SandboxError::IoError(err) => SandboxRejectReason::Io(err.to_string()),
     }
 }
 
@@ -775,123 +1012,28 @@ pub async fn execute_command(
     let (command_string, resolved_intent) = parse_run_command_response(response, sandbox_intent)?;
     let command_str = command_string.as_str();
 
-    if command_str.is_empty() {
+    if let PolicyVerdict::Deny(deny) = evaluate_command_policy(exec_policy, command_str) {
+        let message = deny.message();
         maybe_log_command(
             audit_ctx,
             runtime_events.as_ref(),
             command_str,
-            "invalid",
+            deny.audit_status(),
             true,
             false,
             None,
             None,
             None,
             None,
-            Some("No command provided".to_string()),
+            Some(message.clone()),
         )
         .await;
-        return Err(HarperError::Command("No command provided".to_string()));
+        return Err(HarperError::Command(message));
     }
 
-    // Security check to prevent shell injection and dangerous commands
-    // Note: This is a defense-in-depth measure. The primary security comes from user approval.
-    // We allow wildcards (*, ?) and git revision syntax (~, ^) but block chaining and subshells.
-    let dangerous_chars = [';', '|', '&', '`', '$', '(', ')', '<', '>', '\n', '\r'];
-    if command_str.chars().any(|c| dangerous_chars.contains(&c)) {
-        let message = "Command contains potentially dangerous shell metacharacters (like ;, |, &) or newlines. \
-             Command chaining and redirection are not allowed for security.";
-        maybe_log_command(
-            audit_ctx,
-            runtime_events.as_ref(),
-            command_str,
-            "blocked",
-            true,
-            false,
-            None,
-            None,
-            None,
-            None,
-            Some(message.to_string()),
-        )
-        .await;
-        return Err(HarperError::Command(message.to_string()));
-    }
-
-    // Additional check for common dangerous patterns
-    let dangerous_patterns = [
-        "rm -rf",
-        "rmdir",
-        "del ",
-        "fdisk",
-        "mkfs",
-        "dd if=",
-        "shutdown",
-        "reboot",
-        "halt",
-        "poweroff",
-        "sudo",
-        "su ",
-        "chmod 777",
-        "chown root",
-        "passwd",
-        "/etc/",
-        "/bin/",
-        "/sbin/",
-        "/usr/bin/",
-        "/usr/sbin/",
-    ];
-
-    for pattern in &dangerous_patterns {
-        if command_str.contains(pattern) {
-            let err = format!(
-                "Command contains potentially dangerous pattern: '{}'. \
-                        This command is not allowed for security reasons.",
-                pattern
-            );
-            maybe_log_command(
-                audit_ctx,
-                runtime_events.as_ref(),
-                command_str,
-                "blocked",
-                true,
-                false,
-                None,
-                None,
-                None,
-                None,
-                Some(err.clone()),
-            )
-            .await;
-            return Err(HarperError::Command(err));
-        }
-    }
-
-    // Check exec policy
-    let mut requires_approval = true;
-
-    if let Some(blocked) = &exec_policy.blocked_commands {
-        if blocked.iter().any(|cmd| command_str.starts_with(cmd)) {
-            let err = format!("Command '{}' is blocked by exec policy.", command_str);
-            maybe_log_command(
-                audit_ctx,
-                runtime_events.as_ref(),
-                command_str,
-                "blocked",
-                requires_approval,
-                false,
-                None,
-                None,
-                None,
-                None,
-                Some(err.clone()),
-            )
-            .await;
-            return Err(HarperError::Command(err));
-        }
-    }
-
-    requires_approval =
-        approval_required_for_command(exec_policy, command_str, resolved_intent.as_ref());
+    let approval_requirement =
+        approval_requirement_for_command(exec_policy, command_str, resolved_intent.as_ref());
+    let requires_approval = approval_requirement.requires_approval();
     let mut approved = !requires_approval;
 
     // Ask for approval if required
@@ -948,7 +1090,13 @@ pub async fn execute_command(
             .map_err(|e| HarperError::Command(format!("Task execution failed: {}", e)))??
         };
 
-        if !is_approved {
+        let approval_outcome = if is_approved {
+            ApprovalOutcome::Approved
+        } else {
+            ApprovalOutcome::Rejected
+        };
+
+        if !approval_outcome.is_approved() {
             emit_activity_update(
                 runtime_events.as_ref(),
                 audit_ctx.and_then(|ctx| ctx.session_id),
@@ -983,7 +1131,10 @@ pub async fn execute_command(
                 Some("User rejected command".to_string()),
             )
             .await;
-            return Ok("Command execution cancelled by user".to_string());
+            return Ok(approval_outcome
+                .tool_content()
+                .unwrap_or(ApprovalOutcome::REJECTED_TOOL_CONTENT)
+                .to_string());
         }
         approved = true;
     }
@@ -991,7 +1142,9 @@ pub async fn execute_command(
     let sandbox = configured_sandbox(exec_policy)
         .filter(|config| config.enabled)
         .map(Sandbox::new);
+    let sandbox_step = sandbox_step_result(exec_policy, sandbox.as_ref());
     let sandbox_status = sandbox_status_line(exec_policy, sandbox.as_ref());
+    log::debug!("sandbox step for command: {sandbox_step:?}");
 
     if let Some(ctx) =
         audit_ctx.and_then(|ctx| ctx.session_id.map(|session_id| (ctx.conn, session_id)))
@@ -1048,14 +1201,38 @@ pub async fn execute_command(
     loop {
         let attempt_result = if let Some(sandbox) = sandbox.as_ref() {
             let request = build_sandbox_request(command_str, resolved_intent.as_ref())?;
-            execute_sandboxed_once(
+            match execute_sandboxed_once(
                 sandbox,
                 request,
                 runtime_events.as_ref(),
                 audit_ctx,
                 command_str,
             )
-            .await?
+            .await
+            {
+                Ok(result) => result,
+                Err(err) => {
+                    if let HarperError::Sandbox(sandbox_err) = &err {
+                        let rejected =
+                            SandboxStepResult::Rejected(sandbox_reject_reason(sandbox_err));
+                        maybe_log_command(
+                            audit_ctx,
+                            runtime_events.as_ref(),
+                            command_str,
+                            "blocked",
+                            requires_approval,
+                            approved,
+                            None,
+                            None,
+                            None,
+                            None,
+                            Some(format!("{rejected:?}")),
+                        )
+                        .await;
+                    }
+                    return Err(err);
+                }
+            }
         } else {
             execute_direct_once(command_str, runtime_events.as_ref(), audit_ctx).await?
         };
@@ -1242,10 +1419,13 @@ fn bytes_to_preview(bytes: &[u8]) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        approval_required_for_command, autonomous_retry_safe, build_sandbox_request,
-        configured_sandbox, execute_command, infer_path_intent, looks_like_network_command,
-        maybe_log_command, parse_run_command_response, sandbox_status_line, CommandAuditContext,
-        CommandRetryPolicy, CommandSandboxIntent,
+        approval_requirement_for_command, autonomous_retry_safe, build_sandbox_request,
+        configured_sandbox, evaluate_command_policy, execute_command, infer_path_intent,
+        looks_like_network_command, maybe_log_command, parse_run_command_response,
+        sandbox_reject_reason, sandbox_status_line, sandbox_step_result, ApprovalOutcome,
+        ApprovalRequireReason, ApprovalRequirement, CommandAuditContext, CommandRetryPolicy,
+        CommandSandboxIntent, PolicyDenyReason, PolicyVerdict, SandboxRejectReason,
+        SandboxStepResult,
     };
     use crate::core::error::HarperResult;
     use crate::core::io_traits::RuntimeEventSink;
@@ -1563,11 +1743,9 @@ mod tests {
             retry_network_commands: None,
             retry_write_commands: None,
         };
-        assert!(!approval_required_for_command(
-            &exec_policy,
-            "git status",
-            None
-        ));
+        assert!(
+            !approval_requirement_for_command(&exec_policy, "git status", None).requires_approval()
+        );
     }
 
     #[test]
@@ -1583,11 +1761,9 @@ mod tests {
             retry_network_commands: None,
             retry_write_commands: None,
         };
-        assert!(approval_required_for_command(
-            &exec_policy,
-            "git status",
-            None
-        ));
+        assert!(
+            approval_requirement_for_command(&exec_policy, "git status", None).requires_approval()
+        );
     }
 
     #[test]
@@ -1603,12 +1779,10 @@ mod tests {
             retry_network_commands: None,
             retry_write_commands: None,
         };
-        assert!(!approval_required_for_command(
-            &exec_policy,
-            "git status",
-            None
-        ));
-        assert!(approval_required_for_command(&exec_policy, "ls -la", None));
+        assert!(
+            !approval_requirement_for_command(&exec_policy, "git status", None).requires_approval()
+        );
+        assert!(approval_requirement_for_command(&exec_policy, "ls -la", None).requires_approval());
     }
 
     #[test]
@@ -1637,11 +1811,12 @@ mod tests {
             requires_network: false,
             retry_policy: None,
         };
-        assert!(approval_required_for_command(
+        assert!(approval_requirement_for_command(
             &exec_policy,
             "cp ./src.txt ./out.txt",
             Some(&intent)
-        ));
+        )
+        .requires_approval());
     }
 
     #[test]
@@ -1670,11 +1845,12 @@ mod tests {
             requires_network: false,
             retry_policy: None,
         };
-        assert!(!approval_required_for_command(
+        assert!(!approval_requirement_for_command(
             &exec_policy,
             "cp ./src.txt ./safe/out.txt",
             Some(&intent)
-        ));
+        )
+        .requires_approval());
     }
 
     #[test]
@@ -1696,11 +1872,12 @@ mod tests {
             requires_network: true,
             retry_policy: None,
         };
-        assert!(approval_required_for_command(
+        assert!(approval_requirement_for_command(
             &exec_policy,
             "curl https://example.com",
             Some(&intent)
-        ));
+        )
+        .requires_approval());
     }
 
     #[test]
@@ -1909,5 +2086,209 @@ mod tests {
         )
         .await;
         assert_eq!(sink.activities().len(), 1);
+    }
+
+    #[test]
+    fn evaluate_command_policy_denies_empty_and_dangerous_commands() {
+        let exec_policy = ExecPolicyConfig::default();
+        assert_eq!(
+            evaluate_command_policy(&exec_policy, ""),
+            PolicyVerdict::Deny(PolicyDenyReason::EmptyCommand)
+        );
+        assert_eq!(
+            evaluate_command_policy(&exec_policy, "echo hi; rm -rf /"),
+            PolicyVerdict::Deny(PolicyDenyReason::DangerousMetacharacters)
+        );
+        assert_eq!(
+            evaluate_command_policy(&exec_policy, "rm -rf /tmp"),
+            PolicyVerdict::Deny(PolicyDenyReason::DangerousPattern {
+                pattern: "rm -rf".to_string()
+            })
+        );
+        assert_eq!(
+            evaluate_command_policy(&exec_policy, "echo hi"),
+            PolicyVerdict::Allow
+        );
+    }
+
+    #[test]
+    fn evaluate_command_policy_denies_blocked_exec_policy_commands() {
+        let exec_policy = ExecPolicyConfig {
+            blocked_commands: Some(vec!["custom-blocked".to_string()]),
+            ..Default::default()
+        };
+        assert_eq!(
+            evaluate_command_policy(&exec_policy, "custom-blocked --force"),
+            PolicyVerdict::Deny(PolicyDenyReason::BlockedByExecPolicy {
+                command: "custom-blocked --force".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn policy_deny_reason_messages_match_legacy_strings() {
+        assert_eq!(
+            PolicyDenyReason::EmptyCommand.message(),
+            "No command provided"
+        );
+        assert!(PolicyDenyReason::DangerousMetacharacters
+            .message()
+            .contains("dangerous shell metacharacters"));
+        assert_eq!(
+            PolicyDenyReason::DangerousPattern {
+                pattern: "sudo".to_string()
+            }
+            .message(),
+            "Command contains potentially dangerous pattern: 'sudo'. \
+             This command is not allowed for security reasons."
+        );
+        assert_eq!(
+            PolicyDenyReason::BlockedByExecPolicy {
+                command: "rm".to_string()
+            }
+            .message(),
+            "Command 'rm' is blocked by exec policy."
+        );
+        assert_eq!(PolicyDenyReason::EmptyCommand.audit_status(), "invalid");
+        assert_eq!(
+            PolicyDenyReason::DangerousMetacharacters.audit_status(),
+            "blocked"
+        );
+    }
+
+    #[test]
+    fn approval_requirement_carries_machine_readable_reasons() {
+        let strict = ExecPolicyConfig {
+            approval_profile: Some(ApprovalProfile::Strict),
+            allowed_commands: Some(vec!["git".to_string()]),
+            ..Default::default()
+        };
+        assert_eq!(
+            approval_requirement_for_command(&strict, "git status", None),
+            ApprovalRequirement::Required(ApprovalRequireReason::StrictProfile)
+        );
+
+        let allow_all = ExecPolicyConfig {
+            approval_profile: Some(ApprovalProfile::AllowAll),
+            ..Default::default()
+        };
+        assert_eq!(
+            approval_requirement_for_command(&allow_all, "git status", None),
+            ApprovalRequirement::NotRequired
+        );
+
+        let allow_listed = ExecPolicyConfig {
+            approval_profile: Some(ApprovalProfile::AllowListed),
+            allowed_commands: Some(vec!["git".to_string()]),
+            sandbox: Some(RuntimeSandboxConfig {
+                enabled: Some(true),
+                allowed_dirs: Some(vec![".".to_string()]),
+                writable_dirs: Some(vec!["./safe".to_string()]),
+                network_access: Some(false),
+                readonly_home: Some(true),
+                max_execution_time_secs: Some(30),
+            }),
+            ..Default::default()
+        };
+        assert_eq!(
+            approval_requirement_for_command(&allow_listed, "ls -la", None),
+            ApprovalRequirement::Required(ApprovalRequireReason::NotAllowlisted)
+        );
+
+        let network_intent = CommandSandboxIntent {
+            declared_read_paths: vec![],
+            declared_write_paths: vec![],
+            requires_network: true,
+            retry_policy: None,
+        };
+        assert_eq!(
+            approval_requirement_for_command(&allow_listed, "git fetch", Some(&network_intent)),
+            ApprovalRequirement::Required(ApprovalRequireReason::IntentRequiresNetwork)
+        );
+
+        let write_outside = CommandSandboxIntent {
+            declared_read_paths: vec![],
+            declared_write_paths: vec![std::path::PathBuf::from("./outside.txt")],
+            requires_network: false,
+            retry_policy: None,
+        };
+        assert_eq!(
+            approval_requirement_for_command(&allow_listed, "git checkout", Some(&write_outside)),
+            ApprovalRequirement::Required(ApprovalRequireReason::IntentWritesOutsideWritableDirs)
+        );
+    }
+
+    #[test]
+    fn approval_outcome_rejects_with_legacy_tool_content() {
+        assert!(ApprovalOutcome::AutoApproved.is_approved());
+        assert!(ApprovalOutcome::Approved.is_approved());
+        assert!(!ApprovalOutcome::Rejected.is_approved());
+        assert_eq!(
+            ApprovalOutcome::Rejected.tool_content(),
+            Some("Command execution cancelled by user")
+        );
+        assert_eq!(ApprovalOutcome::Approved.tool_content(), None);
+        assert_eq!(
+            ApprovalOutcome::REJECTED_TOOL_CONTENT,
+            "Command execution cancelled by user"
+        );
+    }
+
+    #[test]
+    fn sandbox_step_result_reports_disabled_and_accepted() {
+        let disabled = ExecPolicyConfig {
+            sandbox_profile: Some(SandboxProfile::Disabled),
+            ..Default::default()
+        };
+        assert_eq!(
+            sandbox_step_result(&disabled, None),
+            SandboxStepResult::Disabled
+        );
+
+        let enabled = ExecPolicyConfig {
+            sandbox_profile: Some(SandboxProfile::Workspace),
+            sandbox: Some(RuntimeSandboxConfig {
+                enabled: Some(true),
+                allowed_dirs: Some(vec![".".to_string()]),
+                writable_dirs: Some(vec![".".to_string()]),
+                network_access: Some(false),
+                readonly_home: Some(true),
+                max_execution_time_secs: Some(30),
+            }),
+            ..Default::default()
+        };
+        let sandbox = configured_sandbox(&enabled)
+            .filter(|config| config.enabled)
+            .map(harper_sandbox::Sandbox::new);
+        let step = sandbox_step_result(&enabled, sandbox.as_ref());
+        assert!(step.is_accepted());
+        assert!(matches!(
+            step,
+            SandboxStepResult::Accepted { ref backend } if !backend.is_empty()
+        ));
+    }
+
+    #[test]
+    fn sandbox_reject_reason_maps_typed_sandbox_errors() {
+        assert_eq!(
+            sandbox_reject_reason(&harper_sandbox::SandboxError::NetworkBlocked),
+            SandboxRejectReason::NetworkBlocked
+        );
+        assert_eq!(
+            sandbox_reject_reason(&harper_sandbox::SandboxError::CommandBlocked {
+                command: "curl".to_string()
+            }),
+            SandboxRejectReason::CommandBlocked("curl".to_string())
+        );
+        assert_eq!(
+            sandbox_reject_reason(&harper_sandbox::SandboxError::Timeout { timeout_secs: 5 }),
+            SandboxRejectReason::Timeout(5)
+        );
+        assert_eq!(
+            sandbox_reject_reason(&harper_sandbox::SandboxError::BackendUnavailable(
+                "missing".to_string()
+            )),
+            SandboxRejectReason::BackendUnavailable("missing".to_string())
+        );
     }
 }
