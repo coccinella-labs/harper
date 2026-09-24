@@ -420,14 +420,30 @@ impl PlanRuntime {
         let mut candidate_files = candidate_files;
         candidate_files.sort();
         candidate_files.dedup();
-        self.authoring = Some(AuthoringRuntime {
-            request: Some(request.into()),
-            phase: Some(AuthoringPhase::ContextBuilt),
-            edit_scope: candidate_files.clone(),
-            candidate_files,
-            inspected_files: Vec::new(),
-            structured_plan: None,
-        });
+        let Some(authoring) = self.authoring.as_mut() else {
+            self.authoring = Some(AuthoringRuntime {
+                request: Some(request.into()),
+                phase: Some(AuthoringPhase::ContextBuilt),
+                edit_scope: candidate_files.clone(),
+                candidate_files,
+                inspected_files: Vec::new(),
+                structured_plan: None,
+            });
+            return;
+        };
+        authoring.request = Some(request.into());
+        for path in candidate_files {
+            if !authoring.candidate_files.contains(&path) {
+                authoring.candidate_files.push(path.clone());
+            }
+            if !authoring.edit_scope.contains(&path) {
+                authoring.edit_scope.push(path);
+            }
+        }
+        authoring.candidate_files.sort();
+        authoring.candidate_files.dedup();
+        authoring.edit_scope.sort();
+        authoring.edit_scope.dedup();
     }
 
     pub fn mark_authoring_plan_created(&mut self) {
@@ -603,7 +619,8 @@ pub struct PlanState {
 #[cfg(test)]
 mod tests {
     use super::{
-        AuthoringPhase, PlanFollowup, PlanJobStatus, PlanLoopOutcome, PlanLoopStage, PlanRuntime,
+        AuthoringPhase, AuthoringPlannedEdit, PlanFollowup, PlanJobStatus, PlanLoopOutcome,
+        PlanLoopStage, PlanRuntime, StructuredAuthoringPlan,
     };
 
     #[test]
@@ -772,5 +789,43 @@ mod tests {
                 .iter()
                 .any(|path| path == "lib/harper-core/src/tools/plan.rs")
         );
+    }
+
+    #[test]
+    fn seed_authoring_context_preserves_structured_plan_and_progress() {
+        let mut runtime = PlanRuntime::default();
+        runtime.set_authoring_structured_plan(StructuredAuthoringPlan {
+            primary_files: vec!["lib/a.rs".to_string(), "lib/b.rs".to_string()],
+            planned_edits: vec![AuthoringPlannedEdit {
+                path: "lib/a.rs".to_string(),
+                change: "x".to_string(),
+                why: None,
+            }],
+            ..Default::default()
+        });
+        assert!(runtime.authoring_structured_plan().is_some());
+
+        runtime.seed_authoring_context(
+            "refactor the planner flow in this repo and then update the tui",
+            vec!["lib/candidate.rs".to_string()],
+        );
+
+        assert!(
+            runtime.authoring_structured_plan().is_some(),
+            "re-seed must not wipe a structured authoring plan"
+        );
+        assert_eq!(
+            runtime.authoring_phase(),
+            Some(&AuthoringPhase::PlanCreated),
+            "re-seed must not regress phase past first plan"
+        );
+        let candidates = runtime
+            .authoring
+            .as_ref()
+            .expect("authoring")
+            .candidate_files
+            .clone();
+        assert!(candidates.iter().any(|path| path == "lib/candidate.rs"));
+        assert!(candidates.iter().any(|path| path == "lib/a.rs"));
     }
 }
