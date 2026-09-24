@@ -518,6 +518,58 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn persisted_dedup_keys_silence_tools_across_resumed_sessions() {
+        let harness = ReplayHarness::new();
+        let first_dispatcher = Arc::new(ScriptedToolDispatcher::new(vec![Ok(Some((
+            "Tool executed".to_string(),
+            "all tests pass".to_string(),
+        )))]));
+        let first_completer = Arc::new(ScriptedCompleter::new(vec![
+            Ok(openai_tool_call(
+                "run_command",
+                r#"{"command":"cargo test"}"#,
+            )),
+            Ok("All tests pass.".to_string()),
+        ]));
+
+        let mut first_history = vec![user_message("run cargo test")];
+        let (first_response, _) = harness
+            .replay(
+                first_completer,
+                first_dispatcher.clone(),
+                default_policy(),
+                "session-resume",
+                &mut first_history,
+            )
+            .await;
+        assert!(first_response.is_ok());
+        assert_eq!(first_dispatcher.recorded_calls().len(), 1);
+
+        let second_dispatcher = Arc::new(ScriptedToolDispatcher::new(vec![]));
+        let second_completer = Arc::new(ScriptedCompleter::new(vec![Ok(openai_tool_call(
+            "run_command",
+            r#"{"command":"cargo test"}"#,
+        ))]));
+
+        let mut second_history = vec![user_message("run cargo test again")];
+        let (second_response, _) = harness
+            .replay(
+                second_completer,
+                second_dispatcher.clone(),
+                default_policy(),
+                "session-resume",
+                &mut second_history,
+            )
+            .await;
+
+        assert!(second_response.is_ok());
+        assert!(
+            second_dispatcher.recorded_calls().is_empty(),
+            "persisted dedupe keys must suppress re-execution across resumed sessions"
+        );
+    }
+
+    #[tokio::test]
     async fn underspecified_tool_call_forces_clarification() {
         let harness = ReplayHarness::new().with_tool_call_source(ToolCallSource::BracketLegacy);
         let dispatcher = Arc::new(ScriptedToolDispatcher::new(vec![]));

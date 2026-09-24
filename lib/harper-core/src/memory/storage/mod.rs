@@ -23,6 +23,7 @@ use crate::core::plan::{PlanRuntime, PlanState};
 use crate::core::Message;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 
 /// Create a new database connection
 pub fn create_connection(path: &str) -> HarperResult<Connection> {
@@ -173,6 +174,15 @@ pub fn init_db(conn: &Connection) -> HarperResult<()> {
              session_id TEXT PRIMARY KEY,
              sources_json TEXT NOT NULL,
              updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+         )",
+        [],
+    )?;
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS session_tool_dedup (
+             session_id TEXT NOT NULL,
+             dedupe_key TEXT NOT NULL,
+             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+             PRIMARY KEY (session_id, dedupe_key)
          )",
         [],
     )?;
@@ -599,6 +609,10 @@ pub fn delete_pending_tool(conn: &Connection, id: &str) -> HarperResult<()> {
 pub fn delete_session(conn: &Connection, session_id: &str) -> HarperResult<()> {
     // First delete all messages for this session
     delete_messages(conn, session_id)?;
+    conn.execute(
+        "DELETE FROM session_tool_dedup WHERE session_id = ?",
+        [session_id],
+    )?;
 
     // Then delete the session itself
     conn.execute("DELETE FROM sessions WHERE id = ?", [session_id])?;
@@ -717,6 +731,34 @@ impl CommandLogRecord {
 }
 
 /// Insert a command log entry into the audit table
+/// Load the persisted tool-call dedupe keys for a session.
+pub fn load_session_tool_dedup_keys(
+    conn: &Connection,
+    session_id: &str,
+) -> HarperResult<HashSet<String>> {
+    let mut stmt =
+        conn.prepare("SELECT dedupe_key FROM session_tool_dedup WHERE session_id = ?1")?;
+    let rows = stmt.query_map(params![session_id], |row| row.get::<_, String>(0))?;
+    let mut keys = HashSet::new();
+    for row in rows {
+        keys.insert(row?);
+    }
+    Ok(keys)
+}
+
+/// Persist a tool-call dedupe key for a session (idempotent).
+pub fn insert_session_tool_dedup_key(
+    conn: &Connection,
+    session_id: &str,
+    key: &str,
+) -> HarperResult<()> {
+    conn.execute(
+        "INSERT OR IGNORE INTO session_tool_dedup (session_id, dedupe_key) VALUES (?1, ?2)",
+        params![session_id, key],
+    )?;
+    Ok(())
+}
+
 pub fn insert_command_log(conn: &Connection, record: &CommandLogRecord) -> HarperResult<()> {
     conn.execute(
         "INSERT INTO command_logs (
@@ -797,6 +839,41 @@ mod tests {
         assert_eq!(
             load_latest_plan_event_id(&conn, "session-a").expect("latest event id"),
             Some(1)
+        );
+    }
+
+    #[test]
+    fn session_tool_dedup_roundtrip_is_scoped_and_idempotent() {
+        let conn = Connection::open_in_memory().expect("in-memory sqlite");
+        init_db(&conn).expect("db init");
+
+        insert_session_tool_dedup_key(&conn, "session-a", "run_command:cargo test")
+            .expect("first insert");
+        insert_session_tool_dedup_key(&conn, "session-a", "run_command:cargo test")
+            .expect("second insert");
+        insert_session_tool_dedup_key(&conn, "session-a", "read_file:src/lib.rs")
+            .expect("third insert");
+        insert_session_tool_dedup_key(&conn, "session-b", "run_command:cargo test")
+            .expect("other session insert");
+
+        let keys_a = load_session_tool_dedup_keys(&conn, "session-a").expect("load session-a");
+        assert_eq!(keys_a.len(), 2);
+        assert!(keys_a.contains("run_command:cargo test"));
+        assert!(keys_a.contains("read_file:src/lib.rs"));
+
+        let keys_b = load_session_tool_dedup_keys(&conn, "session-b").expect("load session-b");
+        assert_eq!(keys_b.len(), 1);
+        assert!(keys_b.contains("run_command:cargo test"));
+
+        delete_session(&conn, "session-a").expect("delete session-a");
+        assert!(load_session_tool_dedup_keys(&conn, "session-a")
+            .expect("load after delete")
+            .is_empty());
+        assert_eq!(
+            load_session_tool_dedup_keys(&conn, "session-b")
+                .expect("load session-b after delete")
+                .len(),
+            1
         );
     }
 }

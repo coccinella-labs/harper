@@ -1119,7 +1119,8 @@ impl<'a> ChatService<'a> {
             }
             Err(err) => return Err(err),
         };
-        let mut executed_tool_calls: HashSet<String> = HashSet::new();
+        let mut executed_tool_calls: HashSet<String> =
+            crate::memory::storage::load_session_tool_dedup_keys(self.conn, session_id)?;
         let mut injected_agents_guidance: HashSet<String> = HashSet::new();
         let mut last_tool_content: Option<String> = None;
         // Forced retry fires at most once per message by design. After a
@@ -1448,6 +1449,11 @@ impl<'a> ChatService<'a> {
                             self.conn, session_id,
                         );
                     }
+                    let _ = crate::memory::storage::insert_session_tool_dedup_key(
+                        self.conn,
+                        session_id,
+                        &dedupe_key,
+                    );
                     executed_tool_calls.insert(dedupe_key);
                     last_tool_content = Some(tool_content.clone());
                     let tool_message = Message {
