@@ -1193,7 +1193,7 @@ impl<'a> ChatService<'a> {
 
         let tool_call_source = self
             .tool_call_source
-            .unwrap_or_else(|| ToolCallSource::from_provider(&self.config.provider));
+            .unwrap_or_else(|| ToolCallSource::from(&self.config.provider));
         'round: for _ in 0..MAX_TOOL_ROUNDS {
             let clean_response = Self::sanitize_model_response(&response);
             let mut tool_calls = parse_tool_calls(&clean_response, tool_call_source);

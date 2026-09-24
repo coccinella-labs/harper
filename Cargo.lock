@@ -850,6 +850,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a"
 
 [[package]]
+name = "coccinella-agent-sdk"
+version = "0.1.0-alpha.1"
+source = "git+https://github.com/coccinella-labs/agent-sdk?rev=8df2ba094c83c9f7da5b4caa2592e48fc0890e3c#8df2ba094c83c9f7da5b4caa2592e48fc0890e3c"
+dependencies = [
+ "async-trait",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tokio",
+]
+
+[[package]]
 name = "color_quant"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1907,6 +1920,7 @@ dependencies = [
  "bitflags 2.13.2",
  "cbc 0.1.2",
  "chrono",
+ "coccinella-agent-sdk",
  "colored",
  "config",
  "criterion",

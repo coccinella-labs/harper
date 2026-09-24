@@ -26,6 +26,7 @@ homepage = "https://github.com/coccinella-labs/harper"
 arboard = "3.4.0"
 axum = "0.8"
 chrono = { version = "0.4.45", features = ["serde"] }
+coccinella-agent-sdk = { git = "https://github.com/coccinella-labs/agent-sdk", rev = "8df2ba094c83c9f7da5b4caa2592e48fc0890e3c" }
 log = "0.4"
 colored = "3.0.0"
 config = "0.15.23"
