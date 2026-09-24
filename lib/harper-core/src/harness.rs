@@ -709,7 +709,73 @@ mod tests {
         );
         let runtime = runtime.expect("plan runtime persisted");
         assert_eq!(runtime.loop_stage, Some(PlanLoopStage::Feedback));
-        assert_eq!(runtime.last_outcome, Some(PlanLoopOutcome::MaxToolRounds));
+        assert_eq!(
+            runtime.last_outcome,
+            Some(PlanLoopOutcome::Responded),
+            "guidance turns must not exhaust the tool-round budget"
+        );
+    }
+
+    #[tokio::test]
+    async fn agents_guidance_does_not_consume_tool_rounds() {
+        let harness = ReplayHarness::new();
+        let calls = [
+            openai_tool_call("read_file", r#"{"path":"src/main.rs"}"#),
+            openai_tool_call("run_command", r#"{"command":"echo 1"}"#),
+            openai_tool_call("run_command", r#"{"command":"echo 2"}"#),
+            openai_tool_call("run_command", r#"{"command":"echo 3"}"#),
+            openai_tool_call("run_command", r#"{"command":"echo 4"}"#),
+        ];
+        // One agents-guidance turn for the first path-targeting call, then four
+        // tool rounds must still dispatch. Completer scripts cover the initial
+        // call plus the guidance re-prompt; each dispatch returns the next
+        // distinct tool call as `tool_result` so the loop continues without
+        // extra completions or a duplicate guard, then the fifth iteration hits
+        // the tool-round ceiling.
+        let dispatcher = Arc::new(ScriptedToolDispatcher::new(
+            calls[1..]
+                .iter()
+                .map(|call| {
+                    Ok(ToolExecOutcome::recoverable(
+                        call.clone(),
+                        "content".to_string(),
+                    ))
+                })
+                .collect(),
+        ));
+        let completer = Arc::new(ScriptedCompleter::new(vec![
+            Ok(calls[0].clone()),
+            Ok(calls[0].clone()),
+        ]));
+
+        let mut history = vec![user_message("inspect the project layout")];
+        let (response, runtime) = harness
+            .replay(
+                completer,
+                dispatcher.clone(),
+                default_policy(),
+                "session-guidance-budget",
+                &mut history,
+            )
+            .await;
+
+        assert!(response.is_ok());
+        assert_eq!(dispatcher.recorded_calls().len(), 4);
+        assert_eq!(
+            dispatcher
+                .recorded_calls()
+                .iter()
+                .map(|call| call.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["read_file", "run_command", "run_command", "run_command"]
+        );
+        let runtime = runtime.expect("plan runtime persisted");
+        assert_eq!(runtime.loop_stage, Some(PlanLoopStage::Feedback));
+        assert_eq!(
+            runtime.last_outcome,
+            Some(PlanLoopOutcome::MaxToolRounds),
+            "four tool rounds remain available after one agents-guidance turn"
+        );
     }
 
     #[tokio::test]
