@@ -603,7 +603,9 @@ fn infer_explicit_write_file_intent(query: &str, normalized: &str) -> Option<(St
     let wants_modify = normalized.contains("modify ")
         || normalized.contains("update ")
         || normalized.contains("change ")
-        || normalized.contains("replace ");
+        || normalized.contains("replace ")
+        || normalized.contains("edit ")
+        || normalized.contains("save ");
     if !wants_create && !wants_modify {
         return None;
     }
@@ -1647,6 +1649,54 @@ mod tests {
             Some(DeterministicIntent::WriteFile(WriteFileIntent {
                 path: "notes.txt".to_string(),
                 content: "hello from harper".to_string(),
+            }))
+        );
+    }
+
+    #[test]
+    fn routes_explicit_edit_file_with_content() {
+        let intent = route_intent(r#"edit notes.txt with hello from harper"#);
+        assert_eq!(
+            intent,
+            Some(DeterministicIntent::WriteFile(WriteFileIntent {
+                path: "notes.txt".to_string(),
+                content: "hello from harper".to_string(),
+            }))
+        );
+    }
+
+    #[test]
+    fn routes_explicit_edit_file_with_to_marker() {
+        let intent = route_intent(r#"edit README.md to add a badge"#);
+        assert_eq!(
+            intent,
+            Some(DeterministicIntent::WriteFile(WriteFileIntent {
+                path: "README.md".to_string(),
+                content: "add a badge".to_string(),
+            }))
+        );
+    }
+
+    #[test]
+    fn routes_explicit_edit_nested_path_with_content() {
+        let intent = route_intent(r#"edit lib/harper-core/src/lib.rs with a new export"#);
+        assert_eq!(
+            intent,
+            Some(DeterministicIntent::WriteFile(WriteFileIntent {
+                path: "lib/harper-core/src/lib.rs".to_string(),
+                content: "a new export".to_string(),
+            }))
+        );
+    }
+
+    #[test]
+    fn routes_explicit_save_file_with_content() {
+        let intent = route_intent(r#"save notes.txt with hello"#);
+        assert_eq!(
+            intent,
+            Some(DeterministicIntent::WriteFile(WriteFileIntent {
+                path: "notes.txt".to_string(),
+                content: "hello".to_string(),
             }))
         );
     }
