@@ -22,11 +22,12 @@ use std::cell::Cell;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::atomic::Ordering;
 use uuid::Uuid;
 
 // Keyboard shortcut constants
 const HELP_MESSAGE: &str =
-    "G:Help | Tab:Complete | Esc:Back | ↑↓:Navigate | Y/V:Prev/Next | Enter:Select/Approve | T:Send | L/→:Preview | D/Delete:Remove Session | X:Exit | W:Web | B:Sidebar | A:Agents | /agents on|off | F:Findings | Ctrl+S:Plan | Ctrl+O:Output | R:Retry | U:Replan | K:Ack | P:Jobs | M:Msgs | C:ID";
+    "G:Help | Tab:Complete | Esc:Back | ↑↓:Navigate | Y/V:Prev/Next | Enter:Select/Approve | T:Send | L/→:Preview | D/Delete:Remove Session | X:Exit | W:Web | B:Sidebar | A:Agents | /agents on|off | F:Findings | Ctrl+S:Plan | Ctrl+O:Output | R:Retry | U:Replan | K:Ack | P:Jobs | M:Msgs | Ctrl+C:Cancel";
 
 use super::app::{
     AppState, ChatState, DragScrollDirection, DragScrollState, DragScrollTarget,
@@ -363,6 +364,22 @@ pub fn handle_event(
                         record_approval_history(app, &command, false);
                         return EventResult::Continue;
                     }
+                    KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                        let command = approval.command.clone();
+                        if let Some(tx) = approval
+                            .tx
+                            .lock()
+                            .expect("Failed to lock approval channel")
+                            .take()
+                        {
+                            let _ = tx.send(false);
+                        }
+                        app.pending_approval = None;
+                        app.cancel_requested.store(true, Ordering::SeqCst);
+                        app.set_status_message("Cancellation requested".to_string());
+                        record_approval_history(app, &command, false);
+                        return EventResult::Continue;
+                    }
                     KeyCode::Down | KeyCode::Char('j') => {
                         app.next(); // app.next() handles scroll offset for approval
                         return EventResult::Continue;
@@ -589,10 +606,16 @@ pub fn handle_event(
                         return handle_enter(app, session_service);
                     }
                     KeyCode::Char('c') => {
-                        if let AppState::Chat(chat_state) = &app.state {
-                            app.set_info_message(format!("Session ID: {}", chat_state.session_id));
+                        let in_flight = app.activity_status.is_some()
+                            || matches!(
+                                &app.state,
+                                AppState::Chat(chat_state) if chat_state.awaiting_response
+                            );
+                        if in_flight {
+                            app.cancel_requested.store(true, Ordering::SeqCst);
+                            app.set_status_message("Cancellation requested".to_string());
                         } else {
-                            app.set_info_message("State: Menu".to_string());
+                            app.set_status_message("No operation in flight".to_string());
                         }
                         return EventResult::Continue;
                     }
@@ -3381,5 +3404,79 @@ mod tests {
         let result = handle_event(Event::Resize(80, 24), &mut app, &session_service);
         assert!(matches!(result, EventResult::Continue));
         assert!(matches!(app.state, AppState::Menu(_)));
+    }
+
+    #[test]
+    fn ctrl_c_requests_cancellation_when_operation_in_flight() {
+        let mut app = TuiApp::new();
+        let mut chat_state = create_chat_state("session".to_string(), vec![], None, None, false);
+        chat_state.awaiting_response = true;
+        app.state = AppState::Chat(Box::new(chat_state));
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        harper_core::memory::storage::init_db(&conn).unwrap();
+        let session_service = SessionService::new(&conn);
+
+        let result = handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL)),
+            &mut app,
+            &session_service,
+        );
+
+        assert!(matches!(result, EventResult::Continue));
+        assert!(app.cancel_requested.load(Ordering::SeqCst));
+        let message = app.message.as_ref().expect("status message");
+        assert_eq!(message.content, "Cancellation requested");
+    }
+
+    #[test]
+    fn ctrl_c_reports_when_no_operation_in_flight() {
+        let mut app = TuiApp::new();
+        let chat_state = create_chat_state("session".to_string(), vec![], None, None, false);
+        app.state = AppState::Chat(Box::new(chat_state));
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        harper_core::memory::storage::init_db(&conn).unwrap();
+        let session_service = SessionService::new(&conn);
+
+        let result = handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL)),
+            &mut app,
+            &session_service,
+        );
+
+        assert!(matches!(result, EventResult::Continue));
+        assert!(!app.cancel_requested.load(Ordering::SeqCst));
+        let message = app.message.as_ref().expect("status message");
+        assert_eq!(message.content, "No operation in flight");
+    }
+
+    #[test]
+    fn ctrl_c_cancels_pending_approval() {
+        use crate::interfaces::ui::app::ApprovalState;
+        use std::sync::{Arc, Mutex};
+
+        let mut app = TuiApp::new();
+        let (tx, mut rx) = tokio::sync::oneshot::channel();
+        app.pending_approval = Some(ApprovalState {
+            prompt: "Run cargo test?".to_string(),
+            command: "cargo test".to_string(),
+            tx: Arc::new(Mutex::new(Some(tx))),
+            scroll_offset: 0,
+        });
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        harper_core::memory::storage::init_db(&conn).unwrap();
+        let session_service = SessionService::new(&conn);
+
+        let result = handle_event(
+            Event::Key(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL)),
+            &mut app,
+            &session_service,
+        );
+
+        assert!(matches!(result, EventResult::Continue));
+        assert!(app.pending_approval.is_none());
+        assert!(app.cancel_requested.load(Ordering::SeqCst));
+        assert_eq!(rx.try_recv(), Ok(false));
+        let message = app.message.as_ref().expect("status message");
+        assert_eq!(message.content, "Cancellation requested");
     }
 }

@@ -2457,6 +2457,7 @@ fn format_loop_stage(stage: &PlanLoopStage) -> &'static str {
         PlanLoopStage::RetryPending => "retry",
         PlanLoopStage::ReplanRequired => "replan",
         PlanLoopStage::Responding => "respond",
+        PlanLoopStage::Interrupted => "interrupted",
     }
 }
 

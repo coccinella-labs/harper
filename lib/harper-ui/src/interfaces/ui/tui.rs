@@ -14,6 +14,7 @@
 
 use std::collections::HashMap;
 use std::io::Write;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tokio::sync::{mpsc, oneshot};
 
@@ -270,10 +271,71 @@ fn final_chat_loop_outcome(
             | PlanLoopStage::Executing
             | PlanLoopStage::Feedback,
         ) => PlanLoopOutcome::Succeeded,
-        Some(PlanLoopStage::RetryPending | PlanLoopStage::ReplanRequired) | None => {
-            current.cloned().unwrap_or(PlanLoopOutcome::Responded)
-        }
+        Some(
+            PlanLoopStage::RetryPending
+            | PlanLoopStage::ReplanRequired
+            | PlanLoopStage::Interrupted,
+        )
+        | None => current.cloned().unwrap_or(PlanLoopOutcome::Responded),
     }
+}
+
+async fn wait_for_cancel(cancel: &AtomicBool) {
+    while !cancel.load(Ordering::SeqCst) {
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+}
+
+fn load_cancel_session_view(
+    conn: &Connection,
+    session_id: &str,
+    auth_user_id: Option<&str>,
+) -> SessionStateView {
+    let session_service = SessionService::new(conn);
+    let fallback_history =
+        || harper_core::memory::storage::load_history(conn, session_id).unwrap_or_default();
+    match auth_user_id {
+        Some(user_id) => session_service
+            .load_session_state_view_for_user(session_id, user_id)
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| SessionStateView {
+                session_id: session_id.to_string(),
+                user_id: Some(user_id.to_string()),
+                messages: fallback_history(),
+                plan: None,
+                agents: None,
+                agents_rendered: None,
+                agents_effective_rendered: None,
+            }),
+        None => session_service
+            .load_session_state_view(session_id)
+            .unwrap_or_else(|_| SessionStateView {
+                session_id: session_id.to_string(),
+                user_id: None,
+                messages: fallback_history(),
+                plan: None,
+                agents: None,
+                agents_rendered: None,
+                agents_effective_rendered: None,
+            }),
+    }
+}
+
+async fn finalize_worker_cancellation(
+    conn: &Connection,
+    session_id: &str,
+    auth_user_id: Option<&str>,
+    ui_tx: &mpsc::Sender<UiUpdate>,
+) {
+    let _ = harper_core::tools::plan::set_plan_loop_stage(
+        conn,
+        session_id,
+        PlanLoopStage::Interrupted,
+        Some("cancelled by user".to_string()),
+    );
+    let session_view = load_cancel_session_view(conn, session_id, auth_user_id);
+    let _ = ui_tx.send(UiUpdate::MessageProcessed(session_view)).await;
 }
 
 fn display_command_info(app: &mut TuiApp, response: String) {
@@ -637,6 +699,7 @@ pub async fn run_tui(
     // Spawn background worker in a separate thread to handle non-Send Connection
     let ui_tx_clone = ui_tx.clone();
     let worker_approval_tx = approval_tx.clone();
+    let worker_cancel = app.cancel_requested.clone();
     std::thread::spawn(move || {
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -667,6 +730,17 @@ pub async fn run_tui(
                         web_search,
                         auth_user_id,
                     } => {
+                        tokio::select! {
+                            () = wait_for_cancel(&worker_cancel) => {
+                                finalize_worker_cancellation(
+                                    &worker_conn,
+                                    &session_id,
+                                    auth_user_id.as_deref(),
+                                    &ui_tx_clone,
+                                )
+                                .await;
+                            }
+                            () = async {
                         let mut chat_service = ChatService::new(
                             &worker_conn,
                             &worker_api_config,
@@ -735,11 +809,24 @@ pub async fn run_tui(
                                 let _ = ui_tx_clone.send(UiUpdate::Error(e.to_string())).await;
                             }
                         }
+                            } => {}
+                        }
                     }
                     WorkerMsg::RetryPlanCommand {
                         command,
                         session_id,
                     } => {
+                        tokio::select! {
+                            () = wait_for_cancel(&worker_cancel) => {
+                                finalize_worker_cancellation(
+                                    &worker_conn,
+                                    &session_id,
+                                    None,
+                                    &ui_tx_clone,
+                                )
+                                .await;
+                            }
+                            () = async {
                         let exec_policy = worker_exec_policy
                             .lock()
                             .expect("worker exec policy lock")
@@ -767,12 +854,25 @@ pub async fn run_tui(
                         if let Err(err) = result {
                             let _ = ui_tx_clone.send(UiUpdate::Error(err.to_string())).await;
                         }
+                            } => {}
+                        }
                     }
                     WorkerMsg::ExecuteShellCommand {
                         command,
                         session_id,
                         auth_user_id,
                     } => {
+                        tokio::select! {
+                            () = wait_for_cancel(&worker_cancel) => {
+                                finalize_worker_cancellation(
+                                    &worker_conn,
+                                    &session_id,
+                                    auth_user_id.as_deref(),
+                                    &ui_tx_clone,
+                                )
+                                .await;
+                            }
+                            () = async {
                         let exec_policy = worker_exec_policy
                             .lock()
                             .expect("worker exec policy lock")
@@ -842,6 +942,8 @@ pub async fn run_tui(
                                 let _ = ui_tx_clone.send(UiUpdate::Error(err.to_string())).await;
                             }
                         }
+                            } => {}
+                        }
                     }
                 }
             }
@@ -902,6 +1004,7 @@ pub async fn run_tui(
                                                 chat_state.command_output_scroll = 0;
                                                 chat_state.command_output_selection = None;
                                                 app.set_activity_status(Some(format!("running: {}", command)));
+                                                app.cancel_requested.store(false, Ordering::SeqCst);
                                                 let _ = worker_tx.send(WorkerMsg::ExecuteShellCommand {
                                                     command,
                                                     session_id,
@@ -1115,6 +1218,7 @@ pub async fn run_tui(
                                 chat_state.command_output_scroll = 0;
                                 chat_state.command_output_selection = None;
                                 app.set_activity_status(Some("thinking".to_string()));
+                                app.cancel_requested.store(false, Ordering::SeqCst);
 
                                 let _ = worker_tx.send(WorkerMsg::SendMessage {
                                     user_msg: msg,
@@ -1501,6 +1605,7 @@ pub async fn run_tui(
                                 }
                             }
                             app.set_activity_status(Some(format!("retrying: {}", command)));
+                            app.cancel_requested.store(false, Ordering::SeqCst);
                             let _ = worker_tx
                                 .send(WorkerMsg::RetryPlanCommand {
                                     command,
@@ -1955,5 +2060,45 @@ mod tests {
 
         sync_mouse_capture(&mut backend, &mut enabled, false).expect("disable mouse capture");
         assert!(!enabled);
+    }
+
+    #[tokio::test]
+    async fn wait_for_cancel_returns_immediately_when_already_requested() {
+        use super::wait_for_cancel;
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        let cancel = AtomicBool::new(true);
+        wait_for_cancel(&cancel).await;
+        assert!(cancel.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn finalize_worker_cancellation_marks_loop_stage_interrupted() {
+        use super::{finalize_worker_cancellation, UiUpdate};
+
+        let conn = rusqlite::Connection::open_in_memory().expect("in-memory db");
+        harper_core::memory::storage::init_db(&conn).expect("init db");
+        let args = serde_json::json!({
+            "items": [{"step": "Inspect files", "status": "in_progress"}]
+        });
+        harper_core::tools::plan::update_plan(&conn, "cancel-session", &args).expect("seed plan");
+
+        let (ui_tx, mut ui_rx) = tokio::sync::mpsc::channel::<UiUpdate>(1);
+        finalize_worker_cancellation(&conn, "cancel-session", None, &ui_tx).await;
+
+        let plan = harper_core::memory::storage::load_plan_state(&conn, "cancel-session")
+            .expect("load plan")
+            .expect("plan present");
+        let runtime = plan.runtime.expect("runtime present");
+        assert_eq!(runtime.loop_stage, Some(PlanLoopStage::Interrupted));
+        assert_eq!(runtime.last_feedback.as_deref(), Some("cancelled by user"));
+
+        match ui_rx.try_recv() {
+            Ok(UiUpdate::MessageProcessed(view)) => {
+                assert_eq!(view.session_id, "cancel-session");
+            }
+            Ok(_) => panic!("expected MessageProcessed update"),
+            Err(err) => panic!("expected MessageProcessed update, got {err}"),
+        }
     }
 }

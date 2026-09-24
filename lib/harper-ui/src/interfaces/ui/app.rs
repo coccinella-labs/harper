@@ -24,6 +24,7 @@ use std::cell::Cell;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::oneshot;
@@ -590,6 +591,7 @@ pub struct TuiApp {
     pub show_menu_logo: bool,
     pub mouse_capture: bool,
     pub drag_scroll: Option<DragScrollState>,
+    pub cancel_requested: Arc<AtomicBool>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -655,6 +657,7 @@ impl Default for TuiApp {
             show_menu_logo: true,
             mouse_capture: false,
             drag_scroll: None,
+            cancel_requested: Arc::new(AtomicBool::new(false)),
         }
     }
 }
