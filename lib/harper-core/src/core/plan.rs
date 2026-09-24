@@ -52,6 +52,7 @@ pub enum PlanLoopStage {
     RetryPending,
     ReplanRequired,
     Responding,
+    Interrupted,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
