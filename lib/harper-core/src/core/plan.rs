@@ -66,6 +66,10 @@ pub enum PlanLoopOutcome {
     ReplanRequired,
     Responded,
     BackendUnavailable,
+    MaxToolRounds,
+    Duplicate,
+    Rejected,
+    Cancelled,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

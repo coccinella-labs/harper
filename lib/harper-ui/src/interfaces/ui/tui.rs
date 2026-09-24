@@ -319,12 +319,10 @@ fn final_chat_loop_outcome(
             | PlanLoopStage::Executing
             | PlanLoopStage::Feedback,
         ) => PlanLoopOutcome::Succeeded,
-        Some(
-            PlanLoopStage::RetryPending
-            | PlanLoopStage::ReplanRequired
-            | PlanLoopStage::Interrupted,
-        )
-        | None => current.cloned().unwrap_or(PlanLoopOutcome::Responded),
+        Some(PlanLoopStage::Interrupted) => current.cloned().unwrap_or(PlanLoopOutcome::Cancelled),
+        Some(PlanLoopStage::RetryPending | PlanLoopStage::ReplanRequired) | None => {
+            current.cloned().unwrap_or(PlanLoopOutcome::Responded)
+        }
     }
 }
 
@@ -380,6 +378,12 @@ async fn finalize_worker_cancellation(
         conn,
         session_id,
         PlanLoopStage::Interrupted,
+        Some("cancelled by user".to_string()),
+    );
+    let _ = harper_core::tools::plan::record_plan_loop_outcome(
+        conn,
+        session_id,
+        PlanLoopOutcome::Cancelled,
         Some("cancelled by user".to_string()),
     );
     let session_view = load_cancel_session_view(conn, session_id, auth_user_id);
@@ -2146,6 +2150,7 @@ mod tests {
         let runtime = plan.runtime.expect("runtime present");
         assert_eq!(runtime.loop_stage, Some(PlanLoopStage::Interrupted));
         assert_eq!(runtime.last_feedback.as_deref(), Some("cancelled by user"));
+        assert_eq!(runtime.last_outcome, Some(PlanLoopOutcome::Cancelled));
 
         match ui_rx.try_recv() {
             Ok(UiUpdate::MessageProcessed(view)) => {
