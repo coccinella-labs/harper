@@ -229,21 +229,39 @@ impl<'a> ToolService<'a> {
             Ok(Some((final_response, command_result)))
         } else if response.to_uppercase().starts_with(tools::READ_FILE) {
             self.sync_plan_before_tool("read_file")?;
-            let tool_result = filesystem::read_file(response, self.approver.clone()).await?;
+            let tool_result = filesystem::read_file(
+                response,
+                self.approver.clone(),
+                self.runtime_events.as_ref(),
+                self.session_id,
+            )
+            .await?;
             let final_response = self
                 .call_llm_after_tool(client, history, response, &tool_result)
                 .await?;
             Ok(Some((final_response, tool_result)))
         } else if response.to_uppercase().starts_with(tools::WRITE_FILE) {
             self.sync_plan_before_tool("write_file")?;
-            let tool_result = filesystem::write_file(response, self.approver.clone()).await?;
+            let tool_result = filesystem::write_file(
+                response,
+                self.approver.clone(),
+                self.runtime_events.as_ref(),
+                self.session_id,
+            )
+            .await?;
             let final_response = self
                 .call_llm_after_tool(client, history, response, &tool_result)
                 .await?;
             Ok(Some((final_response, tool_result)))
         } else if response.to_uppercase().starts_with(tools::SEARCH_REPLACE) {
             self.sync_plan_before_tool("search_replace")?;
-            let tool_result = filesystem::search_replace(response, self.approver.clone()).await?;
+            let tool_result = filesystem::search_replace(
+                response,
+                self.approver.clone(),
+                self.runtime_events.as_ref(),
+                self.session_id,
+            )
+            .await?;
             let final_response = self
                 .call_llm_after_tool(client, history, response, &tool_result)
                 .await?;
@@ -430,8 +448,13 @@ impl<'a> ToolService<'a> {
             "read_file" => {
                 if let Some(path) = args.get("path").and_then(|v| v.as_str()) {
                     let bracket_command = format!("[READ_FILE {}]", path);
-                    let read_result =
-                        filesystem::read_file(&bracket_command, self.approver.clone()).await?;
+                    let read_result = filesystem::read_file(
+                        &bracket_command,
+                        self.approver.clone(),
+                        self.runtime_events.as_ref(),
+                        self.session_id,
+                    )
+                    .await?;
                     let final_response = self
                         .call_llm_after_tool(client, history, raw_response, &read_result)
                         .await?;
@@ -445,8 +468,14 @@ impl<'a> ToolService<'a> {
                 let path = args.get("path").and_then(|v| v.as_str());
                 let content = args.get("content").and_then(|v| v.as_str());
                 if let (Some(path), Some(content)) = (path, content) {
-                    let write_result =
-                        filesystem::write_file_direct(path, content, self.approver.clone()).await?;
+                    let write_result = filesystem::write_file_direct(
+                        path,
+                        content,
+                        self.approver.clone(),
+                        self.runtime_events.as_ref(),
+                        self.session_id,
+                    )
+                    .await?;
                     let final_response = self
                         .call_llm_after_tool(client, history, raw_response, &write_result)
                         .await?;
@@ -464,8 +493,13 @@ impl<'a> ToolService<'a> {
                 {
                     let bracket_command =
                         format!("[SEARCH_REPLACE {} {} {}]", path, old_string, new_string);
-                    let replace_result =
-                        filesystem::search_replace(&bracket_command, self.approver.clone()).await?;
+                    let replace_result = filesystem::search_replace(
+                        &bracket_command,
+                        self.approver.clone(),
+                        self.runtime_events.as_ref(),
+                        self.session_id,
+                    )
+                    .await?;
                     let final_response = self
                         .call_llm_after_tool(client, history, raw_response, &replace_result)
                         .await?;

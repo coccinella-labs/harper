@@ -24,7 +24,8 @@ use colored::*;
 use std::io::{self, Write};
 use std::path::Path;
 
-use crate::core::io_traits::UserApproval;
+use crate::core::io_traits::{RuntimeEventSink, UserApproval};
+use crate::tools::shell::emit_activity_update;
 use std::sync::Arc;
 
 fn looks_like_absolute_path(raw_path: &str) -> bool {
@@ -208,6 +209,8 @@ fn validate_read_target(path: &str) -> HarperResult<()> {
 pub async fn read_file(
     response: &str,
     approver: Option<Arc<dyn UserApproval>>,
+    runtime_events: Option<&Arc<dyn RuntimeEventSink>>,
+    session_id: Option<&str>,
 ) -> HarperResult<String> {
     let path = resolve_read_target(&parsing::extract_tool_arg(response, "[READ_FILE")?)?;
     validate_read_target(&path)?;
@@ -216,12 +219,19 @@ pub async fn read_file(
         if !appr.approve("Read file?", &path).await? {
             return Ok("File read cancelled by user".to_string());
         }
-    } else {
+    } else if runtime_events.is_none() {
         println!(
             "{} Reading file: {}",
             "System:".bold().magenta(),
             path.magenta()
         );
+    } else {
+        emit_activity_update(
+            runtime_events,
+            session_id,
+            Some(format!("Reading file: {}", path)),
+        )
+        .await;
     }
 
     std::fs::read_to_string(&path)
@@ -232,31 +242,44 @@ pub async fn read_file(
 pub async fn write_file(
     response: &str,
     approver: Option<Arc<dyn UserApproval>>,
+    runtime_events: Option<&Arc<dyn RuntimeEventSink>>,
+    session_id: Option<&str>,
 ) -> HarperResult<String> {
     let args = parsing::extract_tool_args(response, "[WRITE_FILE", 2)?;
-    write_file_direct(&args[0], &args[1], approver).await
+    write_file_direct(&args[0], &args[1], approver, runtime_events, session_id).await
 }
 
 pub async fn write_file_direct(
     raw_path: &str,
     content: &str,
     approver: Option<Arc<dyn UserApproval>>,
+    runtime_events: Option<&Arc<dyn RuntimeEventSink>>,
+    session_id: Option<&str>,
 ) -> HarperResult<String> {
     let path = ground_workspace_path(raw_path)?;
 
     let is_approved = if let Some(appr) = approver {
         appr.approve("Write to file?", &path).await?
     } else {
+        emit_activity_update(
+            runtime_events,
+            session_id,
+            Some(format!("waiting approval: Write to file {}", path)),
+        )
+        .await;
+        let show_prompt = runtime_events.is_none();
         let p = path.clone();
         tokio::task::spawn_blocking(move || {
-            println!(
-                "{} Write to file {}? (y/n): ",
-                "System:".bold().magenta(),
-                p.magenta()
-            );
-            io::stdout()
-                .flush()
-                .map_err(|e| HarperError::Io(e.to_string()))?;
+            if show_prompt {
+                println!(
+                    "{} Write to file {}? (y/n): ",
+                    "System:".bold().magenta(),
+                    p.magenta()
+                );
+                io::stdout()
+                    .flush()
+                    .map_err(|e| HarperError::Io(e.to_string()))?;
+            }
             let mut approval = String::new();
             io::stdin()
                 .read_line(&mut approval)
@@ -271,11 +294,20 @@ pub async fn write_file_direct(
         return Ok("File write cancelled by user".to_string());
     }
 
-    println!(
-        "{} Writing to file: {}",
-        "System:".bold().magenta(),
-        path.magenta()
-    );
+    if runtime_events.is_none() {
+        println!(
+            "{} Writing to file: {}",
+            "System:".bold().magenta(),
+            path.magenta()
+        );
+    } else {
+        emit_activity_update(
+            runtime_events,
+            session_id,
+            Some(format!("Writing to file: {}", path)),
+        )
+        .await;
+    }
 
     write_cache_aligned(&path, content.as_bytes())
         .map_err(|e| HarperError::Command(format!("Failed to write file {}: {}", path, e)))?;
@@ -287,6 +319,8 @@ pub async fn write_file_direct(
 pub async fn search_replace(
     response: &str,
     approver: Option<Arc<dyn UserApproval>>,
+    runtime_events: Option<&Arc<dyn RuntimeEventSink>>,
+    session_id: Option<&str>,
 ) -> HarperResult<String> {
     let args = parsing::extract_tool_args(response, "[SEARCH_REPLACE", 3)?;
     let path = resolve_read_target(&args[0])?;
@@ -297,16 +331,28 @@ pub async fn search_replace(
     let is_approved = if let Some(appr) = approver {
         appr.approve("Search and replace in file?", &path).await?
     } else {
+        emit_activity_update(
+            runtime_events,
+            session_id,
+            Some(format!(
+                "waiting approval: Search and replace in file {}",
+                path
+            )),
+        )
+        .await;
+        let show_prompt = runtime_events.is_none();
         let p = path.clone();
         tokio::task::spawn_blocking(move || {
-            println!(
-                "{} Search and replace in file {}? (y/n): ",
-                "System:".bold().magenta(),
-                p.magenta()
-            );
-            io::stdout()
-                .flush()
-                .map_err(|e| HarperError::Io(e.to_string()))?;
+            if show_prompt {
+                println!(
+                    "{} Search and replace in file {}? (y/n): ",
+                    "System:".bold().magenta(),
+                    p.magenta()
+                );
+                io::stdout()
+                    .flush()
+                    .map_err(|e| HarperError::Io(e.to_string()))?;
+            }
             let mut approval = String::new();
             io::stdin()
                 .read_line(&mut approval)
@@ -321,11 +367,20 @@ pub async fn search_replace(
         return Ok("Search and replace cancelled by user".to_string());
     }
 
-    println!(
-        "{} Searching and replacing in file: {}",
-        "System:".bold().magenta(),
-        path.magenta()
-    );
+    if runtime_events.is_none() {
+        println!(
+            "{} Searching and replacing in file: {}",
+            "System:".bold().magenta(),
+            path.magenta()
+        );
+    } else {
+        emit_activity_update(
+            runtime_events,
+            session_id,
+            Some(format!("Searching and replacing in file: {}", path)),
+        )
+        .await;
+    }
 
     let content = std::fs::read_to_string(&path)
         .map_err(|e| HarperError::Command(format!("Failed to read file {}: {}", path, e)))?;
@@ -362,10 +417,67 @@ mod tests {
         }
     }
     use super::{
-        ground_workspace_path_for_cwd, resolve_read_target_for_cwd, search_replace,
+        ground_workspace_path_for_cwd, read_file, resolve_read_target_for_cwd, search_replace,
         validate_read_target,
     };
     use crate::core::error::HarperError;
+    use crate::core::io_traits::RuntimeEventSink;
+
+    static CWD_GUARD: std::sync::LazyLock<tokio::sync::Mutex<()>> =
+        std::sync::LazyLock::new(|| tokio::sync::Mutex::new(()));
+
+    #[derive(Default)]
+    struct CapturingSink {
+        activities: std::sync::Mutex<Vec<String>>,
+    }
+
+    impl CapturingSink {
+        fn activities(&self) -> Vec<String> {
+            self.activities.lock().expect("activities lock").clone()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl RuntimeEventSink for CapturingSink {
+        async fn plan_updated(
+            &self,
+            _session_id: &str,
+            _plan: Option<crate::core::plan::PlanState>,
+        ) -> HarperResult<()> {
+            Ok(())
+        }
+
+        async fn agents_updated(
+            &self,
+            _session_id: &str,
+            _agents: Option<crate::core::agents::ResolvedAgents>,
+        ) -> HarperResult<()> {
+            Ok(())
+        }
+
+        async fn activity_updated(
+            &self,
+            _session_id: &str,
+            status: Option<String>,
+        ) -> HarperResult<()> {
+            self.activities
+                .lock()
+                .expect("activities lock")
+                .push(status.unwrap_or_default());
+            Ok(())
+        }
+
+        async fn command_output_updated(
+            &self,
+            _session_id: &str,
+            _command: String,
+            _chunk: String,
+            _is_error: bool,
+            _done: bool,
+        ) -> HarperResult<()> {
+            Ok(())
+        }
+    }
 
     #[test]
     fn grounds_foreign_absolute_path_to_workspace_basename_match() {
@@ -432,6 +544,7 @@ mod tests {
 
     #[tokio::test]
     async fn search_replace_grounds_foreign_absolute_path_to_workspace_match() {
+        let _cwd_guard = CWD_GUARD.lock().await;
         let temp = tempfile::tempdir().expect("tempdir");
         let previous = std::env::current_dir().expect("cwd");
         std::env::set_current_dir(temp.path()).expect("set cwd");
@@ -445,7 +558,7 @@ mod tests {
         .expect("write target");
 
         let response = r#"[SEARCH_REPLACE /Users/username/Documents/project/source/widgets.rs retry_count retry_total]"#;
-        let result = search_replace(response, Some(Arc::new(AllowApproval)))
+        let result = search_replace(response, Some(Arc::new(AllowApproval)), None, None)
             .await
             .expect("search replace");
         let content = std::fs::read_to_string(&target).expect("read back");
@@ -454,5 +567,29 @@ mod tests {
 
         assert!(result.contains("Replaced 1 occurrences"));
         assert!(content.contains("retry_total"));
+    }
+
+    #[tokio::test]
+    async fn read_file_routes_system_notice_through_sink_without_approver() {
+        let _cwd_guard = CWD_GUARD.lock().await;
+        let sink = Arc::new(CapturingSink::default());
+        let trait_sink: Arc<dyn RuntimeEventSink> = sink.clone();
+        let result = read_file(
+            "[READ_FILE src/tools/filesystem.rs]",
+            None,
+            Some(&trait_sink),
+            Some("session-1"),
+        )
+        .await
+        .expect("read file");
+
+        assert!(result.contains("Filesystem operations tool"));
+        let expected = format!(
+            "Reading file: {}",
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("src/tools/filesystem.rs")
+                .to_string_lossy()
+        );
+        assert_eq!(sink.activities(), vec![expected]);
     }
 }

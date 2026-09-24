@@ -115,7 +115,7 @@ fn parse_run_command_response(
 use crate::core::io_traits::{RuntimeEventSink, UserApproval};
 use std::sync::Arc;
 
-async fn emit_activity_update(
+pub(crate) async fn emit_activity_update(
     runtime_events: Option<&Arc<dyn RuntimeEventSink>>,
     session_id: Option<&str>,
     status: Option<String>,
@@ -770,6 +770,7 @@ pub async fn execute_command(
     if command_str.is_empty() {
         maybe_log_command(
             audit_ctx,
+            runtime_events.as_ref(),
             command_str,
             "invalid",
             true,
@@ -779,7 +780,8 @@ pub async fn execute_command(
             None,
             None,
             Some("No command provided".to_string()),
-        );
+        )
+        .await;
         return Err(HarperError::Command("No command provided".to_string()));
     }
 
@@ -792,6 +794,7 @@ pub async fn execute_command(
              Command chaining and redirection are not allowed for security.";
         maybe_log_command(
             audit_ctx,
+            runtime_events.as_ref(),
             command_str,
             "blocked",
             true,
@@ -801,7 +804,8 @@ pub async fn execute_command(
             None,
             None,
             Some(message.to_string()),
-        );
+        )
+        .await;
         return Err(HarperError::Command(message.to_string()));
     }
 
@@ -838,6 +842,7 @@ pub async fn execute_command(
             );
             maybe_log_command(
                 audit_ctx,
+                runtime_events.as_ref(),
                 command_str,
                 "blocked",
                 true,
@@ -847,7 +852,8 @@ pub async fn execute_command(
                 None,
                 None,
                 Some(err.clone()),
-            );
+            )
+            .await;
             return Err(HarperError::Command(err));
         }
     }
@@ -860,6 +866,7 @@ pub async fn execute_command(
             let err = format!("Command '{}' is blocked by exec policy.", command_str);
             maybe_log_command(
                 audit_ctx,
+                runtime_events.as_ref(),
                 command_str,
                 "blocked",
                 requires_approval,
@@ -869,7 +876,8 @@ pub async fn execute_command(
                 None,
                 None,
                 Some(err.clone()),
-            );
+            )
+            .await;
             return Err(HarperError::Command(err));
         }
     }
@@ -904,16 +912,19 @@ pub async fn execute_command(
             // Fallback to spawn_blocking for stdin if no approver provided (legacy support)
             let prompt = "Execute command?".to_string();
             let cmd = command_str.to_string();
+            let show_prompt = runtime_events.is_none();
             tokio::task::spawn_blocking(move || {
-                println!(
-                    "{} {} {} (y/n): ",
-                    "System:".bold().magenta(),
-                    prompt.bold().magenta(),
-                    cmd.magenta()
-                );
-                io::stdout()
-                    .flush()
-                    .map_err(|e| HarperError::Io(e.to_string()))?;
+                if show_prompt {
+                    println!(
+                        "{} {} {} (y/n): ",
+                        "System:".bold().magenta(),
+                        prompt.bold().magenta(),
+                        cmd.magenta()
+                    );
+                    io::stdout()
+                        .flush()
+                        .map_err(|e| HarperError::Io(e.to_string()))?;
+                }
 
                 let mut approval = String::new();
                 io::stdin()
@@ -944,6 +955,7 @@ pub async fn execute_command(
             }
             maybe_log_command(
                 audit_ctx,
+                runtime_events.as_ref(),
                 command_str,
                 "cancelled",
                 requires_approval,
@@ -953,7 +965,8 @@ pub async fn execute_command(
                 None,
                 None,
                 Some("User rejected command".to_string()),
-            );
+            )
+            .await;
             return Ok("Command execution cancelled by user".to_string());
         }
         approved = true;
@@ -1033,6 +1046,7 @@ pub async fn execute_command(
         {
             maybe_log_command(
                 audit_ctx,
+                runtime_events.as_ref(),
                 command_str,
                 if attempt_result.success {
                     "succeeded"
@@ -1047,7 +1061,8 @@ pub async fn execute_command(
                 attempt_result.stderr_preview,
                 (!attempt_result.success)
                     .then_some("Command exited with non-zero status".to_string()),
-            );
+            )
+            .await;
 
             if let Some(ctx) =
                 audit_ctx.and_then(|ctx| ctx.session_id.map(|session_id| (ctx.conn, session_id)))
@@ -1071,6 +1086,7 @@ pub async fn execute_command(
 
         maybe_log_command(
             audit_ctx,
+            runtime_events.as_ref(),
             command_str,
             "retrying",
             requires_approval,
@@ -1080,7 +1096,8 @@ pub async fn execute_command(
             attempt_result.stdout_preview.clone(),
             attempt_result.stderr_preview.clone(),
             Some("Autonomous retry scheduled after first failure".to_string()),
-        );
+        )
+        .await;
         if let Some(ctx) =
             audit_ctx.and_then(|ctx| ctx.session_id.map(|session_id| (ctx.conn, session_id)))
         {
@@ -1117,8 +1134,9 @@ async fn emit_plan_update(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn maybe_log_command(
-    audit_ctx: Option<&CommandAuditContext>,
+async fn maybe_log_command(
+    audit_ctx: Option<&CommandAuditContext<'_>>,
+    runtime_events: Option<&Arc<dyn RuntimeEventSink>>,
     command: &str,
     status: &str,
     requires_approval: bool,
@@ -1144,7 +1162,16 @@ fn maybe_log_command(
             error_message,
         );
         if let Err(err) = storage::insert_command_log(ctx.conn, &record) {
-            eprintln!("Warning: failed to persist command log: {}", err);
+            if runtime_events.is_none() {
+                eprintln!("Warning: failed to persist command log: {}", err);
+            } else {
+                emit_activity_update(
+                    runtime_events,
+                    ctx.session_id,
+                    Some(format!("Warning: failed to persist command log: {}", err)),
+                )
+                .await;
+            }
         }
     }
 }
@@ -1180,15 +1207,70 @@ mod tests {
     use super::{
         approval_required_for_command, autonomous_retry_safe, build_sandbox_request,
         configured_sandbox, execute_command, infer_path_intent, looks_like_network_command,
-        parse_run_command_response, sandbox_status_line, CommandAuditContext, CommandRetryPolicy,
-        CommandSandboxIntent,
+        maybe_log_command, parse_run_command_response, sandbox_status_line, CommandAuditContext,
+        CommandRetryPolicy, CommandSandboxIntent,
     };
+    use crate::core::error::HarperResult;
+    use crate::core::io_traits::RuntimeEventSink;
     use crate::core::plan::{PlanFollowup, PlanItem, PlanState, PlanStepStatus};
     use crate::core::{ApiConfig, ApiProvider};
     use crate::runtime::config::{
         ApprovalProfile, ExecPolicyConfig, SandboxConfig as RuntimeSandboxConfig, SandboxProfile,
     };
     use rusqlite::Connection;
+
+    #[derive(Default)]
+    struct CapturingSink {
+        activities: std::sync::Mutex<Vec<String>>,
+    }
+
+    impl CapturingSink {
+        fn activities(&self) -> Vec<String> {
+            self.activities.lock().expect("activities lock").clone()
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl RuntimeEventSink for CapturingSink {
+        async fn plan_updated(
+            &self,
+            _session_id: &str,
+            _plan: Option<PlanState>,
+        ) -> HarperResult<()> {
+            Ok(())
+        }
+
+        async fn agents_updated(
+            &self,
+            _session_id: &str,
+            _agents: Option<crate::core::agents::ResolvedAgents>,
+        ) -> HarperResult<()> {
+            Ok(())
+        }
+
+        async fn activity_updated(
+            &self,
+            _session_id: &str,
+            status: Option<String>,
+        ) -> HarperResult<()> {
+            self.activities
+                .lock()
+                .expect("activities lock")
+                .push(status.unwrap_or_default());
+            Ok(())
+        }
+
+        async fn command_output_updated(
+            &self,
+            _session_id: &str,
+            _command: String,
+            _chunk: String,
+            _is_error: bool,
+            _done: bool,
+        ) -> HarperResult<()> {
+            Ok(())
+        }
+    }
 
     fn test_config() -> ApiConfig {
         ApiConfig {
@@ -1739,5 +1821,56 @@ mod tests {
                 .and_then(|runtime| runtime.followup.as_ref()),
             Some(PlanFollowup::RetryOrReplan { retry_count: 2, .. })
         ));
+    }
+
+    #[tokio::test]
+    async fn maybe_log_command_routes_persist_failure_through_sink() {
+        let conn = Connection::open_in_memory().expect("in-memory db");
+        let audit_ctx = CommandAuditContext {
+            conn: &conn,
+            session_id: Some("session-warn"),
+            source: "test",
+        };
+        let sink = std::sync::Arc::new(CapturingSink::default());
+        let trait_sink: std::sync::Arc<dyn RuntimeEventSink> = sink.clone();
+
+        maybe_log_command(
+            Some(&audit_ctx),
+            Some(&trait_sink),
+            "echo hi",
+            "succeeded",
+            true,
+            true,
+            Some(0),
+            Some(1),
+            None,
+            None,
+            None,
+        )
+        .await;
+
+        let activities = sink.activities();
+        assert_eq!(activities.len(), 1);
+        assert!(
+            activities[0].starts_with("Warning: failed to persist command log:"),
+            "unexpected activity: {}",
+            activities[0]
+        );
+
+        maybe_log_command(
+            Some(&audit_ctx),
+            None,
+            "echo hi",
+            "succeeded",
+            true,
+            true,
+            Some(0),
+            Some(1),
+            None,
+            None,
+            None,
+        )
+        .await;
+        assert_eq!(sink.activities().len(), 1);
     }
 }
