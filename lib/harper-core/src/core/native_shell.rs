@@ -970,12 +970,16 @@ mod tests {
     fn slash_commands_remain_strict() {
         let err = parse_native_shell_command("/plan the migration").expect_err("strict slash");
         assert!(err.to_string().contains("unknown plan command 'the'"));
-        assert!(parse_native_shell_command("/ask how updates work")
-            .expect("slash ask parses")
-            .is_some());
-        assert!(parse_native_shell_command("/run the tests")
-            .expect("slash run parses")
-            .is_some());
+        assert!(
+            parse_native_shell_command("/ask how updates work")
+                .expect("slash ask parses")
+                .is_some()
+        );
+        assert!(
+            parse_native_shell_command("/run the tests")
+                .expect("slash run parses")
+                .is_some()
+        );
     }
 
     #[test]

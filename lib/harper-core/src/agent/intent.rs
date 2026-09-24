@@ -1032,12 +1032,12 @@ fn infer_simple_run_command(query: &str, normalized: &str) -> Option<String> {
             "git status" => return Some("git status".to_string()),
             "git diff" => return Some("git diff".to_string()),
             "harper" | "run harper" => {
-                return Some("cargo run -p harper-ui --bin harper".to_string())
+                return Some("cargo run -p harper-ui --bin harper".to_string());
             }
             "fmt" | "format" | "run fmt" => return Some("cargo fmt --all".to_string()),
             "fmt check" | "format check" => return Some("cargo fmt --all -- --check".to_string()),
             "tests" | "test" | "run tests" | "run test" => {
-                return Some("cargo test --all-features --workspace".to_string())
+                return Some("cargo test --all-features --workspace".to_string());
             }
             "check" | "run check" => return Some("cargo check --workspace".to_string()),
             _ => {}

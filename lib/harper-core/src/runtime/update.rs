@@ -485,10 +485,11 @@ fn decode_update_public_key(encoded: &str) -> crate::HarperResult<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::{
-        compare_versions, current_target_key, evaluate_update, extract_release_executable,
-        install_downloaded_executable, load_persisted_install_source_from_home,
-        metadata_path_from_home, save_persisted_install_source_from_home, verify_artifact_checksum,
-        verify_artifact_signature, InstallSource, ReleaseManifest,
+        InstallSource, ReleaseManifest, compare_versions, current_target_key, evaluate_update,
+        extract_release_executable, install_downloaded_executable,
+        load_persisted_install_source_from_home, metadata_path_from_home,
+        save_persisted_install_source_from_home, verify_artifact_checksum,
+        verify_artifact_signature,
     };
     use base64::Engine;
     use ring::rand::SystemRandom;

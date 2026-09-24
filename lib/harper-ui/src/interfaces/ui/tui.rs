@@ -22,11 +22,11 @@ use crossterm::event::{
     DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
 };
 use crossterm::terminal::{
-    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+    EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
 use crossterm::{cursor, execute};
-use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
+use ratatui::backend::CrosstermBackend;
 
 use super::app::{AppState, ApprovalState, ChatState, CommandOutputState, TuiApp};
 use super::auth;
@@ -34,13 +34,13 @@ use super::events::{self, EventResult};
 use super::settings;
 use super::theme::Theme;
 use super::widgets;
+use harper_core::ExecutionStrategy;
 use harper_core::agent::chat::ChatService;
+use harper_core::core::ApiConfig;
 use harper_core::core::io_traits::{RuntimeEventSink, UserApproval};
 use harper_core::core::plan::{PlanLoopOutcome, PlanLoopStage};
-use harper_core::core::ApiConfig;
 use harper_core::memory::session_service::SessionService;
 use harper_core::runtime::config::{ExecPolicyConfig, UiConfig};
-use harper_core::ExecutionStrategy;
 use harper_core::{PlanState, ResolvedAgents, SessionStateView};
 use rusqlite::Connection;
 
@@ -2132,7 +2132,7 @@ mod tests {
 
     #[tokio::test]
     async fn finalize_worker_cancellation_marks_loop_stage_interrupted() {
-        use super::{finalize_worker_cancellation, UiUpdate};
+        use super::{UiUpdate, finalize_worker_cancellation};
 
         let conn = rusqlite::Connection::open_in_memory().expect("in-memory db");
         harper_core::memory::storage::init_db(&conn).expect("init db");
@@ -2163,7 +2163,7 @@ mod tests {
 
     #[test]
     fn coalesce_ui_update_keeps_last_consecutive_activity_update() {
-        use super::{coalesce_ui_update, UiUpdate};
+        use super::{UiUpdate, coalesce_ui_update};
 
         let mut batch = vec![UiUpdate::ActivityUpdated {
             session_id: "s".to_string(),
@@ -2188,7 +2188,7 @@ mod tests {
 
     #[test]
     fn coalesce_ui_update_merges_consecutive_command_output_chunks() {
-        use super::{coalesce_ui_update, UiUpdate};
+        use super::{UiUpdate, coalesce_ui_update};
 
         let mut batch = vec![UiUpdate::CommandOutputUpdated {
             session_id: "s".to_string(),
@@ -2226,7 +2226,7 @@ mod tests {
 
     #[test]
     fn coalesce_ui_update_keeps_distinct_update_types_and_errors() {
-        use super::{coalesce_ui_update, UiUpdate};
+        use super::{UiUpdate, coalesce_ui_update};
 
         let mut batch = vec![UiUpdate::ActivityUpdated {
             session_id: "s".to_string(),

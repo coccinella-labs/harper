@@ -16,10 +16,11 @@ use async_trait::async_trait;
 use harper_core::core::io_traits::{DenyApproval, RuntimeEventSink, StdinApproval};
 use harper_core::runtime::config::HarperConfig;
 use harper_core::{
+    ApiConfig, ConfigShellContext, HarperError, Message, NativeShellContext, NativeShellOutcome,
+    PlanState, ResolvedAgents,
     agent::chat::{ChatService, ChatTurnDebugSummary},
     create_connection, execute_native_shell_command_with_context, init_db,
-    parse_native_shell_command, resolve_session_target, ApiConfig, ConfigShellContext, HarperError,
-    Message, NativeShellContext, NativeShellOutcome, PlanState, ResolvedAgents,
+    parse_native_shell_command, resolve_session_target,
 };
 use serde::Serialize;
 use std::collections::HashMap;
@@ -223,7 +224,7 @@ fn parse_args(args: &[String]) -> Result<BatchArgs, HarperError> {
                 return Err(HarperError::Validation(format!(
                     "Unknown batch argument: {}",
                     other
-                )))
+                )));
             }
         }
         index += 1;
@@ -669,7 +670,7 @@ fn result_looks_like_backend_unavailable(response: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{format_batch_run_response, TurnDebugOutput};
+    use super::{TurnDebugOutput, format_batch_run_response};
 
     #[test]
     fn batch_run_response_reports_rejected_approval() {

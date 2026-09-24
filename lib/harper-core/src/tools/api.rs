@@ -61,7 +61,7 @@ pub async fn test_api(response: &str) -> crate::core::error::HarperResult<String
             return Err(HarperError::Command(format!(
                 "Unsupported method: {}",
                 method
-            )))
+            )));
         }
     };
 

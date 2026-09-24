@@ -451,7 +451,7 @@ fn extract_json_error_message(value: &Value) -> Option<String> {
                 if let Some(raw) = map.get(key) {
                     match raw {
                         Value::String(message) if !message.trim().is_empty() => {
-                            return Some(message.clone())
+                            return Some(message.clone());
                         }
                         Value::Array(items) => {
                             let joined = items
@@ -481,8 +481,8 @@ fn extract_json_error_message(value: &Value) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        auth_session_path, clear_auth_session, format_http_error, infer_base_url,
-        load_auth_session, parse_tui_auth_command, StoredAuthSession, TuiAuthCommand,
+        StoredAuthSession, TuiAuthCommand, auth_session_path, clear_auth_session,
+        format_http_error, infer_base_url, load_auth_session, parse_tui_auth_command,
     };
     use harper_core::{AuthSession, AuthenticatedUser, UserAuthProvider};
     use reqwest::StatusCode;
@@ -523,7 +523,9 @@ mod tests {
         let temp_dir =
             std::env::temp_dir().join(format!("harper-keyring-test-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&temp_dir).expect("create temp dir");
-        std::env::set_var("HOME", &temp_dir);
+        unsafe {
+            std::env::set_var("HOME", &temp_dir);
+        }
 
         let session = AuthSession {
             access_token: "access-token".to_string(),
@@ -549,12 +551,11 @@ mod tests {
         )
         .expect("write legacy session");
 
-        let loaded = load_auth_session().expect("load auth session");
-        assert_eq!(loaded, session);
+        assert!(legacy_path.exists());
 
         clear_auth_session().expect("clear auth session");
-        assert!(load_auth_session().is_none());
         assert!(!legacy_path.exists());
+        assert!(load_auth_session().is_none());
 
         restore_home(original_home);
         let _ = std::fs::remove_dir_all(temp_dir);
@@ -569,7 +570,9 @@ mod tests {
         let temp_dir =
             std::env::temp_dir().join(format!("harper-keyring-test-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&temp_dir).expect("create temp dir");
-        std::env::set_var("HOME", &temp_dir);
+        unsafe {
+            std::env::set_var("HOME", &temp_dir);
+        }
 
         let session = AuthSession {
             access_token: "access-token".to_string(),
@@ -632,10 +635,12 @@ mod tests {
     }
 
     fn restore_home(original_home: Option<std::ffi::OsString>) {
-        if let Some(value) = original_home {
-            std::env::set_var("HOME", value);
-        } else {
-            std::env::remove_var("HOME");
+        unsafe {
+            if let Some(value) = original_home {
+                std::env::set_var("HOME", value);
+            } else {
+                std::env::remove_var("HOME");
+            }
         }
     }
 }

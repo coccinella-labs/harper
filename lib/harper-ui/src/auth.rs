@@ -193,7 +193,7 @@ fn print_usage() {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_placeholder_key, parse_provider, Provider};
+    use super::{Provider, is_placeholder_key, parse_provider};
 
     #[test]
     fn parse_provider_flag() {

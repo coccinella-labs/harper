@@ -14,7 +14,7 @@
 [package]
 name = "harper-mcp-server"
 version = "0.1.6"
-edition = "2021"
+edition = "2024"
 rust-version = "1.85.0"
 authors = ["Harper Contributors"]
 license = "MIT OR Apache-2.0"

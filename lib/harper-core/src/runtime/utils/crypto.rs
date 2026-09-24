@@ -17,11 +17,11 @@
 use crate::core::constants::crypto;
 use crate::core::error::{HarperError, HarperResult};
 use aes::{
-    cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut, KeyIvInit},
     Aes256,
+    cipher::{BlockDecryptMut, BlockEncryptMut, KeyIvInit, block_padding::Pkcs7},
 };
 use cbc::{Decryptor, Encryptor};
-use ctr::{cipher::StreamCipher, Ctr64BE};
+use ctr::{Ctr64BE, cipher::StreamCipher};
 use ring::{
     aead, digest,
     rand::{SecureRandom, SystemRandom},

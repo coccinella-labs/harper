@@ -363,14 +363,18 @@ fn test_message_creation() {
 async fn test_web_search_mock() {
     use harper_workspace::utils::web_search;
 
-    std::env::set_var(
-        "HARPER_WEB_SEARCH_MOCK_RESPONSE",
-        "{\"AbstractText\":\"Rust is a systems programming language.\"}",
-    );
+    unsafe {
+        std::env::set_var(
+            "HARPER_WEB_SEARCH_MOCK_RESPONSE",
+            "{\"AbstractText\":\"Rust is a systems programming language.\"}",
+        );
+    }
 
     let result = web_search("rust programming").await;
 
-    std::env::remove_var("HARPER_WEB_SEARCH_MOCK_RESPONSE");
+    unsafe {
+        std::env::remove_var("HARPER_WEB_SEARCH_MOCK_RESPONSE");
+    }
 
     match result {
         Ok(response) => {
@@ -396,8 +400,10 @@ mod e2e_tests {
         let db_path = temp_db.path().to_str().unwrap();
 
         // Set up environment variables for testing
-        std::env::set_var("DATABASE_PATH", db_path);
-        std::env::set_var("OPENAI_API_KEY", "test-key");
+        unsafe {
+            std::env::set_var("DATABASE_PATH", db_path);
+            std::env::set_var("OPENAI_API_KEY", "test-key");
+        }
 
         let conn = Connection::open(db_path).unwrap();
         init_db(&conn).unwrap();
@@ -742,7 +748,9 @@ enabled = false
         println!("Running command: {command:?}");
 
         // Ensure DATABASE_PATH is not set to avoid overriding config
-        std::env::remove_var("DATABASE_PATH");
+        unsafe {
+            std::env::remove_var("DATABASE_PATH");
+        }
 
         let mut child = command.spawn().expect("Failed to start binary");
 
@@ -954,8 +962,8 @@ Full stderr:
 
     #[test]
     fn test_syntax_highlighting_parsing() {
-        use harper_workspace::interfaces::ui::widgets::parse_content_with_code;
         use harper_workspace::interfaces::ui::Theme;
+        use harper_workspace::interfaces::ui::widgets::parse_content_with_code;
         use ratatui::style::Color;
         use syntect::highlighting::ThemeSet;
         use syntect::parsing::SyntaxSet;

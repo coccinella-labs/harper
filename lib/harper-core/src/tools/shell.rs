@@ -18,7 +18,7 @@
 //! with safety checks and user approval.
 
 use crate::core::plan::PlanJobStatus;
-use crate::core::{error::HarperError, ApiConfig};
+use crate::core::{ApiConfig, error::HarperError};
 use crate::memory::storage::{self, CommandLogRecord};
 use crate::runtime::config::{ApprovalProfile, ExecPolicyConfig, SandboxProfile};
 use crate::tools::parsing;
@@ -1419,13 +1419,13 @@ fn bytes_to_preview(bytes: &[u8]) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        approval_requirement_for_command, autonomous_retry_safe, build_sandbox_request,
-        configured_sandbox, evaluate_command_policy, execute_command, infer_path_intent,
-        looks_like_network_command, maybe_log_command, parse_run_command_response,
-        sandbox_reject_reason, sandbox_status_line, sandbox_step_result, ApprovalOutcome,
-        ApprovalRequireReason, ApprovalRequirement, CommandAuditContext, CommandRetryPolicy,
-        CommandSandboxIntent, PolicyDenyReason, PolicyVerdict, SandboxRejectReason,
-        SandboxStepResult,
+        ApprovalOutcome, ApprovalRequireReason, ApprovalRequirement, CommandAuditContext,
+        CommandRetryPolicy, CommandSandboxIntent, PolicyDenyReason, PolicyVerdict,
+        SandboxRejectReason, SandboxStepResult, approval_requirement_for_command,
+        autonomous_retry_safe, build_sandbox_request, configured_sandbox, evaluate_command_policy,
+        execute_command, infer_path_intent, looks_like_network_command, maybe_log_command,
+        parse_run_command_response, sandbox_reject_reason, sandbox_status_line,
+        sandbox_step_result,
     };
     use crate::core::error::HarperResult;
     use crate::core::io_traits::RuntimeEventSink;
@@ -1811,12 +1811,10 @@ mod tests {
             requires_network: false,
             retry_policy: None,
         };
-        assert!(approval_requirement_for_command(
-            &exec_policy,
-            "cp ./src.txt ./out.txt",
-            Some(&intent)
-        )
-        .requires_approval());
+        assert!(
+            approval_requirement_for_command(&exec_policy, "cp ./src.txt ./out.txt", Some(&intent))
+                .requires_approval()
+        );
     }
 
     #[test]
@@ -1845,12 +1843,14 @@ mod tests {
             requires_network: false,
             retry_policy: None,
         };
-        assert!(!approval_requirement_for_command(
-            &exec_policy,
-            "cp ./src.txt ./safe/out.txt",
-            Some(&intent)
-        )
-        .requires_approval());
+        assert!(
+            !approval_requirement_for_command(
+                &exec_policy,
+                "cp ./src.txt ./safe/out.txt",
+                Some(&intent)
+            )
+            .requires_approval()
+        );
     }
 
     #[test]
@@ -1872,12 +1872,14 @@ mod tests {
             requires_network: true,
             retry_policy: None,
         };
-        assert!(approval_requirement_for_command(
-            &exec_policy,
-            "curl https://example.com",
-            Some(&intent)
-        )
-        .requires_approval());
+        assert!(
+            approval_requirement_for_command(
+                &exec_policy,
+                "curl https://example.com",
+                Some(&intent)
+            )
+            .requires_approval()
+        );
     }
 
     #[test]
@@ -2131,9 +2133,11 @@ mod tests {
             PolicyDenyReason::EmptyCommand.message(),
             "No command provided"
         );
-        assert!(PolicyDenyReason::DangerousMetacharacters
-            .message()
-            .contains("dangerous shell metacharacters"));
+        assert!(
+            PolicyDenyReason::DangerousMetacharacters
+                .message()
+                .contains("dangerous shell metacharacters")
+        );
         assert_eq!(
             PolicyDenyReason::DangerousPattern {
                 pattern: "sudo".to_string()

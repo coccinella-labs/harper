@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use axum::{routing::post, Router};
+use axum::{Router, routing::post};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};

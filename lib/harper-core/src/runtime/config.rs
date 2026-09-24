@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use crate::core::ApiProvider;
 use crate::core::error::{HarperError, HarperResult};
 use crate::core::models::ProviderModels;
-use crate::core::ApiProvider;
 use config::{ConfigBuilder, File};
 use serde::Deserialize;
 use std::env;
@@ -378,9 +378,9 @@ impl ApiConfig {
             "Ollama" => false,
             _ => {
                 return Err(HarperError::Config(format!(
-                "Invalid API provider: {}. Supported providers: OpenAI, Sambanova, Gemini, Ollama, OpenRouter, Zen",
-                self.provider
-            )))
+                    "Invalid API provider: {}. Supported providers: OpenAI, Sambanova, Gemini, Ollama, OpenRouter, Zen",
+                    self.provider
+                )));
             }
         };
 
@@ -485,7 +485,7 @@ impl UiConfig {
                     return Err(HarperError::Config(format!(
                         "Invalid theme: {}. Supported theme: minimal",
                         theme
-                    )))
+                    )));
                 }
             }
         }
@@ -606,8 +606,8 @@ impl CustomCommandsConfig {
 #[cfg(test)]
 mod tests {
     use super::{
-        should_enable_server, ApprovalProfile, ExecPolicyConfig, HarperConfig, SandboxConfig,
-        SandboxProfile, ServerConfig,
+        ApprovalProfile, ExecPolicyConfig, HarperConfig, SandboxConfig, SandboxProfile,
+        ServerConfig, should_enable_server,
     };
     use config::{ConfigBuilder, File};
     use std::env;
@@ -621,14 +621,16 @@ mod tests {
         let original_redirect = env::var("SUPABASE_REDIRECT_URL").ok();
         let original_providers = env::var("SUPABASE_ALLOWED_PROVIDERS").ok();
 
-        env::set_var("SUPABASE_URL", "https://example.supabase.co");
-        env::set_var("SUPABASE_ANON_KEY", "anon-key");
-        env::set_var("SUPABASE_JWT_SECRET", "jwt-secret");
-        env::set_var(
-            "SUPABASE_REDIRECT_URL",
-            "http://127.0.0.1:8081/auth/callback",
-        );
-        env::set_var("SUPABASE_ALLOWED_PROVIDERS", "github, google");
+        unsafe {
+            env::set_var("SUPABASE_URL", "https://example.supabase.co");
+            env::set_var("SUPABASE_ANON_KEY", "anon-key");
+            env::set_var("SUPABASE_JWT_SECRET", "jwt-secret");
+            env::set_var(
+                "SUPABASE_REDIRECT_URL",
+                "http://127.0.0.1:8081/auth/callback",
+            );
+            env::set_var("SUPABASE_ALLOWED_PROVIDERS", "github, google");
+        }
 
         let mut builder = ConfigBuilder::<config::builder::DefaultState>::default()
             .set_override("api.provider", "OpenAI")
@@ -698,10 +700,12 @@ mod tests {
     }
 
     fn restore_env_var(key: &str, value: Option<String>) {
-        if let Some(value) = value {
-            env::set_var(key, value);
-        } else {
-            env::remove_var(key);
+        unsafe {
+            if let Some(value) = value {
+                env::set_var(key, value);
+            } else {
+                env::remove_var(key);
+            }
         }
     }
 

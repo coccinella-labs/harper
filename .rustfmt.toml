@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # Rust formatting configuration
-edition = "2021"
+edition = "2024"
 max_width = 100
 hard_tabs = false
 tab_spaces = 4

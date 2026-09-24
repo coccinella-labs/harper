@@ -16,13 +16,13 @@
 //!
 //! This module handles user input, chat loops, and message processing.
 
-use crate::agent::intent::{route_intent, DeterministicIntent};
+use crate::agent::intent::{DeterministicIntent, route_intent};
 use crate::agent::offline_shell::plan_offline_shell_commands;
 use crate::agent::prompt::PromptBuilder;
 use crate::core::cache::{ApiCacheKey, ApiResponseCache};
 use crate::core::error::{HarperError, HarperResult};
 use crate::core::plan::AuthoringPhase;
-use crate::core::tool_call::{parse_tool_calls, ToolCall, ToolCallSource};
+use crate::core::tool_call::{ToolCall, ToolCallSource, parse_tool_calls};
 use crate::core::{ApiConfig, Message};
 use crate::harness::{
     LlmCompleter, RealLlmCompleter, RealToolDispatcher, ToolDispatchContext, ToolDispatcher,
@@ -31,8 +31,8 @@ use crate::memory::storage::CommandLogEntry;
 use crate::parsing;
 use crate::runtime::config::{ExecPolicyConfig, ExecutionStrategy};
 use crate::runtime::scheduler::{TaskPriority, TaskScheduler};
-use crate::tools::shell::CommandAuditContext;
 use crate::tools::ToolService;
+use crate::tools::shell::CommandAuditContext;
 
 use colored::Colorize;
 use reqwest::Client;
@@ -3838,7 +3838,7 @@ fn parse_audit_params(args: Option<&str>) -> HarperResult<AuditParams> {
                 _ => {
                     return Err(HarperError::Api(
                         "Approval filter must be one of: approved, rejected, auto.".to_string(),
-                    ))
+                    ));
                 }
             });
             continue;
@@ -3876,7 +3876,7 @@ fn parse_audit_params(args: Option<&str>) -> HarperResult<AuditParams> {
                     return Err(HarperError::Api(format!(
                         "Unknown approval filter '{}'. Use approved, rejected, or auto.",
                         other
-                    )))
+                    )));
                 }
             });
             continue;
@@ -3913,7 +3913,7 @@ impl AuditParams {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent::intent::{route_intent, DeterministicIntent};
+    use crate::agent::intent::{DeterministicIntent, route_intent};
     use crate::core::{ApiConfig, ApiProvider};
     use crate::memory::storage::CommandLogRecord;
 
@@ -4026,9 +4026,10 @@ mod tests {
     #[test]
     fn parse_audit_duplicate_status_errors() {
         let err = parse_audit_params(Some("status=failed succeeded")).expect_err("should fail");
-        assert!(err
-            .to_string()
-            .contains("Status filter specified multiple times"));
+        assert!(
+            err.to_string()
+                .contains("Status filter specified multiple times")
+        );
     }
 
     #[test]
@@ -4341,9 +4342,11 @@ mod tests {
                 .expect("follow-up write intent");
 
         assert_eq!(intent.path, "ai.md");
-        assert!(intent
-            .content
-            .contains("# Introduction to Artificial Intelligence"));
+        assert!(
+            intent
+                .content
+                .contains("# Introduction to Artificial Intelligence")
+        );
     }
 
     #[test]
@@ -4364,9 +4367,11 @@ mod tests {
                 .expect("follow-up write intent");
 
         assert_eq!(intent.path, "ai.md");
-        assert!(intent
-            .content
-            .starts_with("# Introduction to Artificial Intelligence"));
+        assert!(
+            intent
+                .content
+                .starts_with("# Introduction to Artificial Intelligence")
+        );
         assert!(intent.content.contains("## What Is AI?"));
     }
 
@@ -4475,9 +4480,11 @@ mod tests {
             r#"[READ_FILE example.txt]"#,
         );
         assert!(clarification.is_some());
-        assert!(clarification
-            .unwrap()
-            .contains("too ambiguous to act on safely"));
+        assert!(
+            clarification
+                .unwrap()
+                .contains("too ambiguous to act on safely")
+        );
     }
 
     #[test]

@@ -17,8 +17,8 @@
 //! This module provides functionality for git operations
 //! with safety checks and user approval.
 
-use crate::core::error::HarperError;
 use crate::core::ApiConfig;
+use crate::core::error::HarperError;
 use crate::runtime::config::ExecPolicyConfig;
 use crate::tools::parsing;
 use crate::tools::shell::{self, CommandAuditContext};
