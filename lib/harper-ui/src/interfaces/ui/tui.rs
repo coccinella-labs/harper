@@ -221,6 +221,54 @@ enum UiUpdate {
     },
     Error(String),
 }
+fn coalesce_ui_update(batch: &mut Vec<UiUpdate>, update: UiUpdate) {
+    if let UiUpdate::CommandOutputUpdated {
+        session_id,
+        command,
+        chunk,
+        is_error,
+        done,
+    } = &update
+    {
+        if let Some(UiUpdate::CommandOutputUpdated {
+            session_id: prev_session,
+            command: prev_command,
+            chunk: prev_chunk,
+            is_error: prev_is_error,
+            done: prev_done,
+        }) = batch.last_mut()
+        {
+            if prev_session == session_id && prev_command == command {
+                prev_chunk.push_str(chunk);
+                *prev_is_error |= *is_error;
+                *prev_done = *done;
+                return;
+            }
+        }
+        batch.push(update);
+        return;
+    }
+
+    if matches!(update, UiUpdate::Error(_)) {
+        batch.push(update);
+        return;
+    }
+
+    if let Some(last) = batch.last() {
+        if matches!(
+            last,
+            UiUpdate::CommandOutputUpdated { .. } | UiUpdate::Error(_)
+        ) {
+            batch.push(update);
+            return;
+        }
+        if std::mem::discriminant(last) == std::mem::discriminant(&update) {
+            *batch.last_mut().expect("batch is non-empty") = update;
+            return;
+        }
+    }
+    batch.push(update);
+}
 
 /// Helper function to spawn async sidebar gathering task
 fn spawn_sidebar_gathering(chat_state: &ChatState, ui_tx: &mpsc::Sender<UiUpdate>) {
@@ -1699,7 +1747,12 @@ pub async fn run_tui(
 
             // Worker Updates
             update = ui_rx.recv() => {
-                if let Some(update) = update {
+                if let Some(first) = update {
+                    let mut batch = vec![first];
+                    while let Ok(next) = ui_rx.try_recv() {
+                        coalesce_ui_update(&mut batch, next);
+                    }
+                    for update in batch {
                     match update {
                         UiUpdate::MessageProcessed(session_view) => {
                             let mut should_clear_activity = false;
@@ -1920,6 +1973,7 @@ pub async fn run_tui(
                             app.set_error_message(err);
                         }
                     }
+                    }
                 }
             }
 
@@ -2100,5 +2154,100 @@ mod tests {
             Ok(_) => panic!("expected MessageProcessed update"),
             Err(err) => panic!("expected MessageProcessed update, got {err}"),
         }
+    }
+
+    #[test]
+    fn coalesce_ui_update_keeps_last_consecutive_activity_update() {
+        use super::{coalesce_ui_update, UiUpdate};
+
+        let mut batch = vec![UiUpdate::ActivityUpdated {
+            session_id: "s".to_string(),
+            status: Some("thinking".to_string()),
+        }];
+        coalesce_ui_update(
+            &mut batch,
+            UiUpdate::ActivityUpdated {
+                session_id: "s".to_string(),
+                status: Some("running cargo test".to_string()),
+            },
+        );
+
+        assert_eq!(batch.len(), 1);
+        match &batch[0] {
+            UiUpdate::ActivityUpdated { status, .. } => {
+                assert_eq!(status.as_deref(), Some("running cargo test"));
+            }
+            _ => panic!("expected ActivityUpdated"),
+        }
+    }
+
+    #[test]
+    fn coalesce_ui_update_merges_consecutive_command_output_chunks() {
+        use super::{coalesce_ui_update, UiUpdate};
+
+        let mut batch = vec![UiUpdate::CommandOutputUpdated {
+            session_id: "s".to_string(),
+            command: "cargo test".to_string(),
+            chunk: "line 1\n".to_string(),
+            is_error: false,
+            done: false,
+        }];
+        coalesce_ui_update(
+            &mut batch,
+            UiUpdate::CommandOutputUpdated {
+                session_id: "s".to_string(),
+                command: "cargo test".to_string(),
+                chunk: "line 2\n".to_string(),
+                is_error: true,
+                done: true,
+            },
+        );
+
+        assert_eq!(batch.len(), 1);
+        match &batch[0] {
+            UiUpdate::CommandOutputUpdated {
+                chunk,
+                is_error,
+                done,
+                ..
+            } => {
+                assert_eq!(chunk, "line 1\nline 2\n");
+                assert!(*is_error);
+                assert!(*done);
+            }
+            _ => panic!("expected CommandOutputUpdated"),
+        }
+    }
+
+    #[test]
+    fn coalesce_ui_update_keeps_distinct_update_types_and_errors() {
+        use super::{coalesce_ui_update, UiUpdate};
+
+        let mut batch = vec![UiUpdate::ActivityUpdated {
+            session_id: "s".to_string(),
+            status: Some("thinking".to_string()),
+        }];
+        coalesce_ui_update(&mut batch, UiUpdate::Error("first".to_string()));
+        coalesce_ui_update(&mut batch, UiUpdate::Error("second".to_string()));
+        assert_eq!(batch.len(), 3);
+
+        let mut split_commands = vec![UiUpdate::CommandOutputUpdated {
+            session_id: "s".to_string(),
+            command: "cargo test".to_string(),
+            chunk: "a".to_string(),
+            is_error: false,
+            done: false,
+        }];
+        coalesce_ui_update(
+            &mut split_commands,
+            UiUpdate::CommandOutputUpdated {
+                session_id: "s".to_string(),
+                command: "cargo fmt".to_string(),
+                chunk: "b".to_string(),
+                is_error: false,
+                done: false,
+            },
+        );
+        assert_eq!(split_commands.len(), 2);
     }
 }
