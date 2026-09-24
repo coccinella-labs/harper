@@ -1328,9 +1328,9 @@ pub async fn execute_command(
     }
 }
 
-fn persist_plan(job: &str, session_id: &str, result: crate::core::error::HarperResult<()>) {
+fn persist_plan(job: &str, _session_id: &str, result: crate::core::error::HarperResult<()>) {
     if let Err(err) = result {
-        log::warn!("plan persistence failed for session {session_id} while {job}: {err}");
+        log::warn!("plan persistence failed while {job}: {err}");
     }
 }
 
