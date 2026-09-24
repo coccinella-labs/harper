@@ -1,9 +1,0 @@
-{
-  "explanation": "Milestone 4 is mostly complete for the currently implemented scope. Scoped AGENTS rules, planner checkpoints, retry/recovery feedback, and cleaner execution summaries are in place. The remaining work is deeper orchestration quality rather than the original baseline capabilities.",
-  "items": [
-    { "step": "Resolve scoped AGENTS rules", "status": "completed" },
-    { "step": "Add planner checkpoints", "status": "completed" },
-    { "step": "Improve retry and recovery", "status": "completed" },
-    { "step": "Summarize execution state cleanly", "status": "completed" }
-  ]
-}
