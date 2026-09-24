@@ -4605,6 +4605,13 @@ mod tests {
     }
 
     #[test]
+    fn request_does_not_need_authoring_flow_for_direct_edit_intent() {
+        assert!(!ChatService::request_needs_authoring_flow(
+            "edit lib/harper-core/src/lib.rs with a new export"
+        ));
+    }
+
+    #[test]
     fn request_requires_tool_for_open_ended_authoring_flow() {
         assert_eq!(
             ChatService::request_requires_tool("refactor the planner flow in this repo"),
