@@ -16,7 +16,7 @@ use arboard::{Clipboard, ImageData};
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers, MouseEventKind};
 use harper_core;
 use harper_core::PlanStepStatus;
-use ratatui::layout::Rect;
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::text::Line;
 use std::cell::Cell;
 use std::fs;
@@ -34,6 +34,7 @@ use super::app::{
     SessionInfo, TuiApp,
 };
 use super::settings;
+use super::widgets::centered_rect;
 use harper_core::memory::session_service::SessionService;
 
 // Constants
@@ -832,6 +833,9 @@ pub fn handle_event(
         Event::Mouse(mouse) => {
             handle_mouse_event(app, mouse.kind, mouse.column, mouse.row);
         }
+        Event::Resize(width, height) => {
+            reclamp_scrolls_on_resize(app, width, height);
+        }
         _ => {}
     }
     EventResult::Continue
@@ -1000,6 +1004,85 @@ fn command_output_wrapped_row_count(line: &str, width: usize) -> usize {
 
 fn command_output_content_width(area: Rect) -> u16 {
     area.width.saturating_sub(4).max(1)
+}
+
+fn command_output_browser_detail_rect(terminal: Rect) -> Rect {
+    let overlay = centered_rect(90, 80, terminal);
+    Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(3), Constraint::Min(4)])
+        .split(overlay)[1]
+}
+
+fn plan_jobs_browser_detail_rect(terminal: Rect) -> Rect {
+    let overlay = centered_rect(80, 70, terminal);
+    Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Length(4),
+            Constraint::Min(8),
+        ])
+        .split(overlay)[2]
+}
+
+fn wrapped_row_count(content: &str, width: u16) -> usize {
+    let width = width.max(1) as usize;
+    content
+        .lines()
+        .map(|line| command_output_wrapped_row_count(line, width))
+        .sum()
+}
+
+fn max_scroll_for_detail(detail: Rect, content: &str) -> usize {
+    let content_width = command_output_content_width(detail);
+    let visible_rows = detail.height.saturating_sub(1).max(1) as usize;
+    wrapped_row_count(content, content_width).saturating_sub(visible_rows)
+}
+
+fn reclamp_scrolls_on_resize(app: &mut TuiApp, width: u16, height: u16) {
+    let AppState::Chat(chat_state) = &mut app.state else {
+        return;
+    };
+    if chat_state.scroll_offset == 0 {
+        chat_state.follow_latest_messages();
+    }
+    let terminal = Rect {
+        x: 0,
+        y: 0,
+        width,
+        height,
+    };
+    if chat_state.command_output_expanded {
+        if let Some(content) = command_output_display_content(chat_state) {
+            let detail = command_output_browser_detail_rect(terminal);
+            let max_scroll = max_scroll_for_detail(detail, &content);
+            chat_state.command_output_scroll = chat_state.command_output_scroll.min(max_scroll);
+        }
+    }
+    if chat_state.plan_jobs_expanded {
+        let transcript = chat_state
+            .active_plan
+            .as_ref()
+            .and_then(|plan| plan.runtime.as_ref())
+            .and_then(|runtime| {
+                if runtime.jobs.is_empty() {
+                    return None;
+                }
+                let job = &runtime.jobs[chat_state.plan_job_selected.min(runtime.jobs.len() - 1)];
+                let transcript = job.output_transcript.trim();
+                Some(if transcript.is_empty() {
+                    "No output recorded yet".to_string()
+                } else {
+                    job.output_transcript.clone()
+                })
+            });
+        if let Some(transcript) = transcript {
+            let detail = plan_jobs_browser_detail_rect(terminal);
+            let max_scroll = max_scroll_for_detail(detail, &transcript);
+            chat_state.plan_job_output_scroll = chat_state.plan_job_output_scroll.min(max_scroll);
+        }
+    }
 }
 
 fn drag_scroll_state(
@@ -3148,5 +3231,155 @@ mod tests {
 
         assert_eq!(reference, format!("@\"{}\"", image_path.display()));
         let _ = std::fs::remove_file(image_path);
+    }
+
+    #[test]
+    fn resize_keeps_pinned_messages_following_latest() {
+        let mut app = TuiApp::new();
+        let mut chat_state = create_chat_state("session".to_string(), vec![], None, None, true);
+        chat_state.scroll_offset = 0;
+        app.state = AppState::Chat(Box::new(chat_state));
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        harper_core::memory::storage::init_db(&conn).unwrap();
+        let session_service = SessionService::new(&conn);
+
+        let result = handle_event(Event::Resize(120, 40), &mut app, &session_service);
+        assert!(matches!(result, EventResult::Continue));
+        let AppState::Chat(chat_state) = &app.state else {
+            panic!("expected chat state");
+        };
+        assert_eq!(chat_state.scroll_offset, 0);
+    }
+
+    #[test]
+    fn resize_keeps_unpinned_message_scroll_offset() {
+        let mut app = TuiApp::new();
+        let mut chat_state = create_chat_state("session".to_string(), vec![], None, None, true);
+        chat_state.scroll_offset = 4;
+        app.state = AppState::Chat(Box::new(chat_state));
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        harper_core::memory::storage::init_db(&conn).unwrap();
+        let session_service = SessionService::new(&conn);
+
+        handle_event(Event::Resize(120, 40), &mut app, &session_service);
+        let AppState::Chat(chat_state) = &app.state else {
+            panic!("expected chat state");
+        };
+        assert_eq!(chat_state.scroll_offset, 4);
+    }
+
+    #[test]
+    fn resize_reclamps_command_output_scroll_when_expanded() {
+        let mut app = TuiApp::new();
+        let mut chat_state = create_chat_state("session".to_string(), vec![], None, None, true);
+        chat_state.command_output = Some(super::super::app::CommandOutputState {
+            command: "printf output".to_string(),
+            content: "line one\nline two\nline three".to_string(),
+            has_error: false,
+            done: true,
+        });
+        chat_state.command_output_expanded = true;
+        chat_state.command_output_scroll = 500;
+        app.state = AppState::Chat(Box::new(chat_state));
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        harper_core::memory::storage::init_db(&conn).unwrap();
+        let session_service = SessionService::new(&conn);
+
+        handle_event(Event::Resize(100, 40), &mut app, &session_service);
+        let AppState::Chat(chat_state) = &app.state else {
+            panic!("expected chat state");
+        };
+        let terminal = Rect {
+            x: 0,
+            y: 0,
+            width: 100,
+            height: 40,
+        };
+        let detail = command_output_browser_detail_rect(terminal);
+        let expected = max_scroll_for_detail(detail, "line one\nline two\nline three");
+        assert_eq!(chat_state.command_output_scroll, expected);
+        assert!(chat_state.command_output_scroll < 500);
+    }
+
+    #[test]
+    fn resize_leaves_closed_command_output_scroll_untouched() {
+        let mut app = TuiApp::new();
+        let mut chat_state = create_chat_state("session".to_string(), vec![], None, None, true);
+        chat_state.command_output = Some(super::super::app::CommandOutputState {
+            command: "printf output".to_string(),
+            content: "line one\nline two".to_string(),
+            has_error: false,
+            done: true,
+        });
+        chat_state.command_output_expanded = false;
+        chat_state.command_output_scroll = 500;
+        app.state = AppState::Chat(Box::new(chat_state));
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        harper_core::memory::storage::init_db(&conn).unwrap();
+        let session_service = SessionService::new(&conn);
+
+        handle_event(Event::Resize(100, 40), &mut app, &session_service);
+        let AppState::Chat(chat_state) = &app.state else {
+            panic!("expected chat state");
+        };
+        assert_eq!(chat_state.command_output_scroll, 500);
+    }
+
+    #[test]
+    fn resize_reclamps_plan_job_output_scroll_when_expanded() {
+        let mut app = TuiApp::new();
+        let mut chat_state = create_chat_state("session".to_string(), vec![], None, None, true);
+        chat_state.active_plan = Some(PlanState {
+            explanation: None,
+            items: Vec::new(),
+            runtime: Some(PlanRuntime {
+                active_job_id: Some("job-1".to_string()),
+                jobs: vec![PlanJobRecord {
+                    job_id: "job-1".to_string(),
+                    tool: "run_command".to_string(),
+                    command: Some("cargo test".to_string()),
+                    status: PlanJobStatus::Succeeded,
+                    output_transcript: "runtime line 0\nruntime line 1\nruntime line 2".to_string(),
+                    output_preview: None,
+                    has_error_output: false,
+                }],
+                ..Default::default()
+            }),
+            updated_at: None,
+        });
+        chat_state.plan_jobs_expanded = true;
+        chat_state.plan_job_output_scroll = 500;
+        app.state = AppState::Chat(Box::new(chat_state));
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        harper_core::memory::storage::init_db(&conn).unwrap();
+        let session_service = SessionService::new(&conn);
+
+        handle_event(Event::Resize(100, 40), &mut app, &session_service);
+        let AppState::Chat(chat_state) = &app.state else {
+            panic!("expected chat state");
+        };
+        let terminal = Rect {
+            x: 0,
+            y: 0,
+            width: 100,
+            height: 40,
+        };
+        let detail = plan_jobs_browser_detail_rect(terminal);
+        let expected =
+            max_scroll_for_detail(detail, "runtime line 0\nruntime line 1\nruntime line 2");
+        assert_eq!(chat_state.plan_job_output_scroll, expected);
+        assert!(chat_state.plan_job_output_scroll < 500);
+    }
+
+    #[test]
+    fn resize_in_menu_state_is_a_no_op() {
+        let mut app = TuiApp::new();
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        harper_core::memory::storage::init_db(&conn).unwrap();
+        let session_service = SessionService::new(&conn);
+
+        let result = handle_event(Event::Resize(80, 24), &mut app, &session_service);
+        assert!(matches!(result, EventResult::Continue));
+        assert!(matches!(app.state, AppState::Menu(_)));
     }
 }

@@ -2887,7 +2887,7 @@ fn main_menu_logo_lines(_background: Color) -> Vec<Line<'static>> {
         .collect()
 }
 
-fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+pub(crate) fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
     let popup_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
