@@ -166,7 +166,7 @@ jobs:
             $smokeSource,
             "--crate-name=windows_rustc_smoke",
             "--crate-type=bin",
-            "--edition=2021",
+            "--edition=2024",
             "--target=$targetTriple",
             "--sysroot=$sysrootPath",
             "--extern=serde=$serdePath",

@@ -366,10 +366,9 @@ pub fn header_widgets_summary(widgets: &[HeaderWidget]) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        approval_profile_name, execution_strategy_name, next_approval_profile,
-        next_execution_strategy, next_retry_max_attempts, next_sandbox_profile,
-        sandbox_profile_name, upsert_exec_policy_settings, upsert_ui_setting, ExecPolicySettings,
-        HeaderWidget,
+        ExecPolicySettings, HeaderWidget, approval_profile_name, execution_strategy_name,
+        next_approval_profile, next_execution_strategy, next_retry_max_attempts,
+        next_sandbox_profile, sandbox_profile_name, upsert_exec_policy_settings, upsert_ui_setting,
     };
     use harper_core::{ApprovalProfile, ExecutionStrategy, SandboxProfile};
 

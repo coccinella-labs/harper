@@ -2373,12 +2373,12 @@ mod tests {
     use std::collections::BTreeMap;
 
     use super::{
-        authoring_search_query, build_semantic_graph, build_workspace_definition_index,
-        classify_member_role, extract_rust_semantic_file, format_workspace_graph,
-        infer_edit_plan_candidates, infer_query_focus, is_searchable_file, path_relative_to_root,
-        resolve_symbol_candidates, rust_module_path, search_line_score, search_symbol_variants,
-        workspace_member_for_path, QueryFocus, RustSemanticFile, SearchIntentKind, SearchMatch,
-        WorkspaceGraph, WorkspaceMemberOverview,
+        QueryFocus, RustSemanticFile, SearchIntentKind, SearchMatch, WorkspaceGraph,
+        WorkspaceMemberOverview, authoring_search_query, build_semantic_graph,
+        build_workspace_definition_index, classify_member_role, extract_rust_semantic_file,
+        format_workspace_graph, infer_edit_plan_candidates, infer_query_focus, is_searchable_file,
+        path_relative_to_root, resolve_symbol_candidates, rust_module_path, search_line_score,
+        search_symbol_variants, workspace_member_for_path,
     };
     use std::path::Path;
 
@@ -2437,18 +2437,24 @@ pub fn authoring_context() {
         let temp = tempfile::NamedTempFile::new().unwrap();
         std::fs::write(temp.path(), src).unwrap();
         let semantic = extract_rust_semantic_file(temp.path()).expect("semantic file");
-        assert!(semantic
-            .defines
-            .iter()
-            .any(|symbol| symbol == "search_text"));
-        assert!(semantic
-            .defines
-            .iter()
-            .any(|symbol| symbol == "authoring_context"));
-        assert!(semantic
-            .imports
-            .iter()
-            .any(|symbol| symbol == "Path" || symbol == "PathBuf"));
+        assert!(
+            semantic
+                .defines
+                .iter()
+                .any(|symbol| symbol == "search_text")
+        );
+        assert!(
+            semantic
+                .defines
+                .iter()
+                .any(|symbol| symbol == "authoring_context")
+        );
+        assert!(
+            semantic
+                .imports
+                .iter()
+                .any(|symbol| symbol == "Path" || symbol == "PathBuf")
+        );
     }
 
     #[test]
@@ -2535,9 +2541,11 @@ fn run() {
         };
         let candidates = resolve_symbol_candidates(&file, "searcher");
         assert!(candidates.iter().any(|c| c == "searcher"));
-        assert!(candidates
-            .iter()
-            .any(|c| c == "crate::tools::codebase_investigator::search_text"));
+        assert!(
+            candidates
+                .iter()
+                .any(|c| c == "crate::tools::codebase_investigator::search_text")
+        );
         assert!(candidates.iter().any(|c| c == "search_text"));
     }
 
@@ -2664,10 +2672,12 @@ impl RuntimeRunner for Planner {
                 .map(String::as_str),
             Some("RuntimeRunner")
         );
-        assert!(semantic
-            .defines
-            .iter()
-            .any(|d| d == "Planner::RuntimeRunner::run"));
+        assert!(
+            semantic
+                .defines
+                .iter()
+                .any(|d| d == "Planner::RuntimeRunner::run")
+        );
         assert_eq!(
             semantic
                 .method_traits

@@ -31,9 +31,9 @@ pub use crate::core::error::{HarperError, HarperResult};
 pub use crate::core::llm_client::call_llm;
 pub use crate::core::models::ProviderModels;
 pub use crate::core::native_shell::{
-    execute_native_shell_command, execute_native_shell_command_with_context,
-    parse_native_shell_command, resolve_session_target, AuthShellContext, ConfigShellContext,
-    NativeShellCommand, NativeShellContext, NativeShellOutcome, PlanShellCommand,
+    AuthShellContext, ConfigShellContext, NativeShellCommand, NativeShellContext,
+    NativeShellOutcome, PlanShellCommand, execute_native_shell_command,
+    execute_native_shell_command_with_context, parse_native_shell_command, resolve_session_target,
 };
 pub use crate::core::plan::{PlanItem, PlanRuntime, PlanState, PlanStepStatus};
 pub use crate::core::{ApiConfig, ApiProvider, Message};
@@ -43,18 +43,18 @@ pub use crate::agent::chat::ChatService;
 
 // Re-export tools
 pub use crate::tools::{
-    api, code_analysis, db, filesystem, firmware, git, github, image, parsing, plan, screenpipe,
-    shell, todo, web, ToolService,
+    ToolService, api, code_analysis, db, filesystem, firmware, git, github, image, parsing, plan,
+    screenpipe, shell, todo, web,
 };
 
 // Re-export memory utilities
-pub use crate::memory::cache::{CacheAligned, CacheAlignedBuffer, CACHE_LINE_BYTES};
+pub use crate::memory::cache::{CACHE_LINE_BYTES, CacheAligned, CacheAlignedBuffer};
 pub use crate::memory::session_service::SessionStateView;
 pub use crate::memory::storage::{
-    clear_todos, create_connection, delete_messages, delete_session, delete_todo, init_db,
-    insert_command_log, list_sessions, load_active_agents, load_command_logs_for_session,
+    CommandLogEntry, clear_todos, create_connection, delete_messages, delete_session, delete_todo,
+    init_db, insert_command_log, list_sessions, load_active_agents, load_command_logs_for_session,
     load_history, load_latest_command_log, load_plan_state, load_todos, save_active_agents,
-    save_message, save_plan_state, save_session, save_todo, CommandLogEntry,
+    save_message, save_plan_state, save_session, save_todo,
 };
 pub use crate::runtime::utils;
 
@@ -64,11 +64,11 @@ pub use crate::runtime::config::{
 };
 pub use crate::runtime::scheduler::TaskScheduler;
 pub use crate::runtime::update::{
-    compare_versions, current_target_key, download_release_artifact, evaluate_update,
-    extract_release_executable, fetch_release_manifest, install_downloaded_executable,
-    load_persisted_install_source, resolve_install_source, resolve_update_public_key,
-    save_persisted_install_source, verify_artifact_checksum, verify_artifact_signature,
-    InstallSource, ReleaseArtifact, ReleaseManifest, UpdateCheckResult,
+    InstallSource, ReleaseArtifact, ReleaseManifest, UpdateCheckResult, compare_versions,
+    current_target_key, download_release_artifact, evaluate_update, extract_release_executable,
+    fetch_release_manifest, install_downloaded_executable, load_persisted_install_source,
+    resolve_install_source, resolve_update_public_key, save_persisted_install_source,
+    verify_artifact_checksum, verify_artifact_signature,
 };
 
 #[cfg(test)]

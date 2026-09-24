@@ -20,13 +20,13 @@
 use crate::core::constants::crypto::*;
 use crate::core::error::{HarperError, HarperResult};
 use crate::core::{ApiConfig, ApiProvider, Message};
-use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use reqwest::StatusCode;
+use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use ring::{
     aead::{self},
     rand::{SecureRandom, SystemRandom},
 };
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 fn built_in_tool_functions() -> Vec<Value> {
     vec![

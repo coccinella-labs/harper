@@ -14,8 +14,8 @@
 
 //! Prompt building and management
 
-use crate::core::error::HarperError;
 use crate::core::ApiConfig;
+use crate::core::error::HarperError;
 use chrono::Datelike;
 use turul_mcp_client::McpClient;
 

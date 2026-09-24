@@ -1,8 +1,8 @@
 use harper_core::{
-    compare_versions, current_target_key, download_release_artifact, evaluate_update,
-    extract_release_executable, fetch_release_manifest, install_downloaded_executable,
-    resolve_install_source, resolve_update_public_key, save_persisted_install_source,
-    verify_artifact_checksum, verify_artifact_signature, InstallSource,
+    InstallSource, compare_versions, current_target_key, download_release_artifact,
+    evaluate_update, extract_release_executable, fetch_release_manifest,
+    install_downloaded_executable, resolve_install_source, resolve_update_public_key,
+    save_persisted_install_source, verify_artifact_checksum, verify_artifact_signature,
 };
 use serde::Deserialize;
 #[cfg(unix)]
@@ -507,9 +507,9 @@ fn print_self_update_usage() {
 #[cfg(test)]
 mod tests {
     use super::{
-        configured_manifest_url, detect_homebrew_path_fix_for_executable_with_home,
-        fetch_update_status, find_manifest_url, handle_update_command, next_backup_path,
-        shell_quote, GitHubRelease, GitHubReleaseAsset, HomebrewPathFix,
+        GitHubRelease, GitHubReleaseAsset, HomebrewPathFix, configured_manifest_url,
+        detect_homebrew_path_fix_for_executable_with_home, fetch_update_status, find_manifest_url,
+        handle_update_command, next_backup_path, shell_quote,
     };
     use harper_core::InstallSource;
     use std::fs;

@@ -100,7 +100,7 @@ impl UserApproval for StdinApproval {
         let prompt = prompt.to_string();
         let command = command.to_string();
 
-        let res = tokio::task::spawn_blocking(move || {
+        tokio::task::spawn_blocking(move || {
             println!(
                 "{} {} {}",
                 prompt.bold().magenta(),
@@ -118,9 +118,7 @@ impl UserApproval for StdinApproval {
             Ok::<bool, crate::core::error::HarperError>(approval.trim().eq_ignore_ascii_case("y"))
         })
         .await
-        .map_err(|e| crate::core::error::HarperError::Command(format!("Task failed: {}", e)))?;
-
-        res
+        .map_err(|e| crate::core::error::HarperError::Command(format!("Task failed: {}", e)))?
     }
 }
 

@@ -14,12 +14,12 @@
 
 [workspace]
 members = ["lib/harper-core", "lib/harper-ui", "lib/harper-mcp-server", "lib/harper-firmware", "lib/harper-sandbox"]
-resolver = "2"
+resolver = "3"
 
 [package]
 name = "harper-workspace"
 version = "0.23.2"
-edition = "2021"
+edition = "2024"
 rust-version = "1.85.0"
 authors = ["Harper Contributors"]
 license = "MIT OR Apache-2.0"

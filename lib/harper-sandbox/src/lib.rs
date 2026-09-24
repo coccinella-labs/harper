@@ -140,8 +140,8 @@ impl Sandbox {
 
 #[allow(dead_code)]
 pub mod config {
-    pub use crate::policy::from_env;
     pub use crate::SandboxConfig;
+    pub use crate::policy::from_env;
 }
 
 #[cfg(test)]
@@ -160,10 +160,14 @@ mod tests {
 
     #[test]
     fn test_from_env() {
-        std::env::set_var("HARPER_SANDBOX_ENABLED", "true");
+        unsafe {
+            std::env::set_var("HARPER_SANDBOX_ENABLED", "true");
+        }
         let config = config::from_env();
         assert!(config.enabled);
-        std::env::remove_var("HARPER_SANDBOX_ENABLED");
+        unsafe {
+            std::env::remove_var("HARPER_SANDBOX_ENABLED");
+        }
     }
 
     #[test]
@@ -527,12 +531,16 @@ mod tests {
             .unwrap();
 
         let chunks = chunks.lock().expect("chunks lock");
-        assert!(chunks
-            .iter()
-            .any(|(chunk, is_error)| !is_error && chunk == "alpha\n"));
-        assert!(chunks
-            .iter()
-            .any(|(chunk, is_error)| !is_error && chunk == "beta\n"));
+        assert!(
+            chunks
+                .iter()
+                .any(|(chunk, is_error)| !is_error && chunk == "alpha\n")
+        );
+        assert!(
+            chunks
+                .iter()
+                .any(|(chunk, is_error)| !is_error && chunk == "beta\n")
+        );
         assert_eq!(
             String::from_utf8_lossy(&result.output.stdout),
             "alpha\nbeta\n"

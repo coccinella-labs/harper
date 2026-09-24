@@ -26,8 +26,7 @@ use std::sync::atomic::Ordering;
 use uuid::Uuid;
 
 // Keyboard shortcut constants
-const HELP_MESSAGE: &str =
-    "G:Help | Tab:Complete | Esc:Back | ↑↓:Navigate | Y/V:Prev/Next | Enter:Select/Approve | T:Send | L/→:Preview | D/Delete:Remove Session | X:Exit | W:Web | B:Sidebar | A:Agents | /agents on|off | F:Findings | Ctrl+S:Plan | Ctrl+O:Output | R:Retry | U:Replan | K:Ack | P:Jobs | M:Msgs | Ctrl+C:Cancel";
+const HELP_MESSAGE: &str = "G:Help | Tab:Complete | Esc:Back | ↑↓:Navigate | Y/V:Prev/Next | Enter:Select/Approve | T:Send | L/→:Preview | D/Delete:Remove Session | X:Exit | W:Web | B:Sidebar | A:Agents | /agents on|off | F:Findings | Ctrl+S:Plan | Ctrl+O:Output | R:Retry | U:Replan | K:Ack | P:Jobs | M:Msgs | Ctrl+C:Cancel";
 
 use super::app::{
     AppState, ChatState, DragScrollDirection, DragScrollState, DragScrollTarget,
@@ -1292,17 +1291,17 @@ fn handle_enter(app: &mut TuiApp, session_service: &SessionService) -> EventResu
             0 => {
                 return EventResult::StartProfileLogin {
                     provider: "github".to_string(),
-                }
+                };
             }
             1 => {
                 return EventResult::StartProfileLogin {
                     provider: "google".to_string(),
-                }
+                };
             }
             2 => {
                 return EventResult::StartProfileLogin {
                     provider: "apple".to_string(),
-                }
+                };
             }
             _ => {}
         },
@@ -3203,14 +3202,18 @@ mod tests {
         chat_state.input = "/u".to_string();
         refresh_chat_completions(&mut chat_state);
 
-        assert!(chat_state
-            .completion_candidates
-            .iter()
-            .any(|candidate| candidate == "/update"));
-        assert!(chat_state
-            .completion_candidates
-            .iter()
-            .any(|candidate| candidate == "/update check"));
+        assert!(
+            chat_state
+                .completion_candidates
+                .iter()
+                .any(|candidate| candidate == "/update")
+        );
+        assert!(
+            chat_state
+                .completion_candidates
+                .iter()
+                .any(|candidate| candidate == "/update check")
+        );
     }
 
     #[test]
@@ -3219,17 +3222,21 @@ mod tests {
         chat_state.input = "/h".to_string();
         refresh_chat_completions(&mut chat_state);
 
-        assert!(chat_state
-            .completion_candidates
-            .iter()
-            .any(|candidate| candidate == "/history list"));
+        assert!(
+            chat_state
+                .completion_candidates
+                .iter()
+                .any(|candidate| candidate == "/history list")
+        );
 
         chat_state.input = "/auth l".to_string();
         refresh_chat_completions(&mut chat_state);
-        assert!(chat_state
-            .completion_candidates
-            .iter()
-            .any(|candidate| candidate == "/auth login"));
+        assert!(
+            chat_state
+                .completion_candidates
+                .iter()
+                .any(|candidate| candidate == "/auth login")
+        );
     }
 
     #[test]

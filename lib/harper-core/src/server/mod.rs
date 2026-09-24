@@ -15,17 +15,17 @@
 mod auth;
 
 use axum::{
+    Router,
     extract::{Path, Query, State},
     http::StatusCode,
     response::{
-        sse::{Event, KeepAlive, Sse},
         Html, IntoResponse, Json, Redirect, Response,
+        sse::{Event, KeepAlive, Sse},
     },
     routing::{delete, get, post},
-    Router,
 };
 use base64::Engine;
-use futures_util::{stream, StreamExt};
+use futures_util::{StreamExt, stream};
 use reqwest::Client;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -40,7 +40,7 @@ use crate::core::error::{HarperError, HarperResult};
 use crate::core::llm_client::call_llm;
 use crate::core::plan_events;
 use crate::core::{ApiConfig, Message};
-use crate::memory::storage::{save_message, save_session, save_session_for_user, CommandLogRecord};
+use crate::memory::storage::{CommandLogRecord, save_message, save_session, save_session_for_user};
 use crate::runtime::config::ExecPolicyConfig;
 use crate::runtime::config::SupabaseAuthConfig;
 use rusqlite::params;
@@ -1991,7 +1991,7 @@ pub async fn approve_pending_tool(
                         format!("Read error: {}", e),
                     )
                 })?;
-                let truncated = if content.len() > 50000 {
+                if content.len() > 50000 {
                     format!(
                         "{}...\n(truncated {} bytes)",
                         &content[..50000],
@@ -1999,8 +1999,7 @@ pub async fn approve_pending_tool(
                     )
                 } else {
                     content
-                };
-                truncated
+                }
             } else {
                 "Invalid path".to_string()
             }
@@ -2065,23 +2064,23 @@ pub async fn approve_pending_tool(
 #[cfg(test)]
 mod tests {
     use super::{
-        auth_me, auth_tui_poll, auth_tui_refresh, build_authorize_url, delete_session,
-        extract_json_payload, get_session, get_session_plan, get_session_plan_stream,
-        list_sessions, normalize_finding_range, render_auth_status_page, render_auth_success,
-        review_code, CodeReviewFinding, CodeSuggestion, ReviewRange, ReviewRequest, ServerState,
-        SupabaseAuthConfig, TuiAuthFlowState, TuiRefreshRequest,
+        CodeReviewFinding, CodeSuggestion, ReviewRange, ReviewRequest, ServerState,
+        SupabaseAuthConfig, TuiAuthFlowState, TuiRefreshRequest, auth_me, auth_tui_poll,
+        auth_tui_refresh, build_authorize_url, delete_session, extract_json_payload, get_session,
+        get_session_plan, get_session_plan_stream, list_sessions, normalize_finding_range,
+        render_auth_status_page, render_auth_success, review_code,
     };
     use crate::core::auth::{AuthSession, AuthenticatedUser, UserAuthProvider};
     use crate::core::{ApiConfig, ApiProvider};
     use crate::memory::storage::{save_message, save_session, save_session_for_user};
     use crate::runtime::config::ExecPolicyConfig;
+    use axum::Json;
     use axum::body::to_bytes;
     use axum::extract::{Path, State};
-    use axum::http::{header::AUTHORIZATION, HeaderMap, HeaderValue, StatusCode};
+    use axum::http::{HeaderMap, HeaderValue, StatusCode, header::AUTHORIZATION};
     use axum::response::IntoResponse;
-    use axum::Json;
     use chrono::{Duration, Utc};
-    use jsonwebtoken::{encode, EncodingKey, Header};
+    use jsonwebtoken::{EncodingKey, Header, encode};
     use reqwest::Client;
     use rusqlite::Connection;
     use std::collections::HashMap;

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use crate::core::plan::PlanState;
-use ring::digest::{digest, SHA256};
+use ring::digest::{SHA256, digest};
 use std::collections::HashSet;
 use std::fs;
 use std::net::UdpSocket;

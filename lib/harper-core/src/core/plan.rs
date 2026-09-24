@@ -749,7 +749,7 @@ mod tests {
         );
 
         runtime.mark_authoring_inspection(vec![
-            "lib/harper-ui/src/interfaces/ui/widgets.rs".to_string()
+            "lib/harper-ui/src/interfaces/ui/widgets.rs".to_string(),
         ]);
         assert_eq!(
             runtime.authoring_phase(),
@@ -765,10 +765,12 @@ mod tests {
             runtime.authoring_phase(),
             Some(&AuthoringPhase::EditsApplied)
         );
-        assert!(runtime
-            .authoring_edit_scope()
-            .expect("scope")
-            .iter()
-            .any(|path| path == "lib/harper-core/src/tools/plan.rs"));
+        assert!(
+            runtime
+                .authoring_edit_scope()
+                .expect("scope")
+                .iter()
+                .any(|path| path == "lib/harper-core/src/tools/plan.rs")
+        );
     }
 }

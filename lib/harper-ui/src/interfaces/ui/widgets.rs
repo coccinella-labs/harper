@@ -19,8 +19,8 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Padding, Paragraph, Wrap};
 
 use super::app::{
-    AppState, ApprovalState, LineSelection, ReviewState, SessionInfo, TuiApp, UiMessage,
-    MAIN_MENU_ITEM_COUNT,
+    AppState, ApprovalState, LineSelection, MAIN_MENU_ITEM_COUNT, ReviewState, SessionInfo, TuiApp,
+    UiMessage,
 };
 use super::settings;
 use super::theme::Theme;
@@ -346,11 +346,7 @@ pub fn draw(frame: &mut Frame, app: &TuiApp, theme: &Theme) {
                 .unwrap_or(0);
             let mut chat_loop_height = if has_chat_loop {
                 let height = chat_loop_panel_height(&chat_state.loop_state);
-                if compact {
-                    height.min(3)
-                } else {
-                    height
-                }
+                if compact { height.min(3) } else { height }
             } else {
                 0
             };
@@ -371,11 +367,7 @@ pub fn draw(frame: &mut Frame, app: &TuiApp, theme: &Theme) {
                     }
                 })
                 .unwrap_or(if chat_state.agents_panel_expanded {
-                    if compact {
-                        4
-                    } else {
-                        6
-                    }
+                    if compact { 4 } else { 6 }
                 } else {
                     1
                 });
@@ -4285,10 +4277,10 @@ fn plan_job_transcript_lines(job: &PlanJobRecord, theme: &Theme) -> Vec<Line<'st
 mod tests {
     use super::*;
     use crate::interfaces::ui::app;
-    use harper_core::{core::Message, PlanItem};
+    use harper_core::{PlanItem, core::Message};
+    use ratatui::Terminal;
     use ratatui::backend::TestBackend;
     use ratatui::style::Color;
-    use ratatui::Terminal;
     use std::cell::Cell;
 
     fn setup() -> (SyntaxSet, ThemeSet) {
@@ -4486,9 +4478,11 @@ mod tests {
             .map(|cell| cell.symbol())
             .collect::<String>();
 
-        assert!(MAIN_MENU_LOGO_ROWS
-            .iter()
-            .any(|row| !row.trim().is_empty() && rendered.contains(row.trim())));
+        assert!(
+            MAIN_MENU_LOGO_ROWS
+                .iter()
+                .any(|row| !row.trim().is_empty() && rendered.contains(row.trim()))
+        );
         assert!(rendered.contains("New Conversation"));
     }
 
@@ -4498,9 +4492,11 @@ mod tests {
         assert!(main_menu_width() >= MAIN_MENU_ITEMS_WIDTH);
         assert_eq!(main_menu_width(), MAIN_MENU_LOGO_WIDTH);
         assert_eq!(MAIN_MENU_LOGO_ROWS.len(), MAIN_MENU_LOGO_HEIGHT as usize);
-        assert!(MAIN_MENU_LOGO_ROWS
-            .iter()
-            .all(|row| row.chars().count() <= MAIN_MENU_LOGO_WIDTH as usize));
+        assert!(
+            MAIN_MENU_LOGO_ROWS
+                .iter()
+                .all(|row| row.chars().count() <= MAIN_MENU_LOGO_WIDTH as usize)
+        );
     }
 
     #[test]
@@ -4919,15 +4915,21 @@ mod tests {
         );
 
         assert!(lines.len() >= 3);
-        assert!(lines
-            .iter()
-            .any(|line| line.to_string().contains("def greet():")));
-        assert!(lines
-            .iter()
-            .any(|line| line.to_string().contains("print(\"Hello Joy\")")));
-        assert!(lines
-            .iter()
-            .any(|line| line.to_string().contains("greet()")));
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.to_string().contains("def greet():"))
+        );
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.to_string().contains("print(\"Hello Joy\")"))
+        );
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.to_string().contains("greet()"))
+        );
     }
 
     #[test]
@@ -4941,12 +4943,16 @@ mod tests {
 
         assert!(lines.len() >= 3);
         assert_eq!(lines[0].to_string(), "Here is the Python script:");
-        assert!(lines
-            .iter()
-            .any(|line| line.to_string().contains("def greet():")));
-        assert!(lines
-            .iter()
-            .any(|line| line.to_string().contains("print(\"Hello Joy\")")));
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.to_string().contains("def greet():"))
+        );
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.to_string().contains("print(\"Hello Joy\")"))
+        );
     }
 
     #[test]
@@ -5223,12 +5229,16 @@ mod tests {
 
         assert_eq!(lines.len(), 3);
         assert!(lines[0].to_string().contains("recent followups"));
-        assert!(lines[1]
-            .to_string()
-            .contains("retry 2: Retry failing command"));
-        assert!(lines[2]
-            .to_string()
-            .contains("checkpoint: Inspect output → Patch handler"));
+        assert!(
+            lines[1]
+                .to_string()
+                .contains("retry 2: Retry failing command")
+        );
+        assert!(
+            lines[2]
+                .to_string()
+                .contains("checkpoint: Inspect output → Patch handler")
+        );
     }
 
     #[test]
@@ -5244,12 +5254,16 @@ mod tests {
 
         assert_eq!(lines.len(), 3);
         assert!(lines[0].to_string().contains("loop: inspect"));
-        assert!(lines[1]
-            .to_string()
-            .contains("last outcome: retry suggested"));
-        assert!(lines[2]
-            .to_string()
-            .contains("inspect relevant files before editing"));
+        assert!(
+            lines[1]
+                .to_string()
+                .contains("last outcome: retry suggested")
+        );
+        assert!(
+            lines[2]
+                .to_string()
+                .contains("inspect relevant files before editing")
+        );
     }
 
     #[test]
@@ -5264,9 +5278,11 @@ mod tests {
         assert_eq!(lines.len(), 3);
         assert!(lines[0].to_string().contains("loop: respond"));
         assert!(lines[1].to_string().contains("last outcome: responded"));
-        assert!(lines[2]
-            .to_string()
-            .contains("answered directly without planning"));
+        assert!(
+            lines[2]
+                .to_string()
+                .contains("answered directly without planning")
+        );
     }
 
     #[test]

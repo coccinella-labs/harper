@@ -625,10 +625,12 @@ mod tests {
             )
             .await;
 
-        assert!(response
-            .as_deref()
-            .map(|text| text.contains("which previous command"))
-            .unwrap_or(false));
+        assert!(
+            response
+                .as_deref()
+                .map(|text| text.contains("which previous command"))
+                .unwrap_or(false)
+        );
         assert!(dispatcher.recorded_calls().is_empty());
     }
 

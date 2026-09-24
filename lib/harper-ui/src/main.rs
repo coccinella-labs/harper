@@ -19,7 +19,7 @@ use harper_core::error::HarperError;
 
 use std::io::IsTerminal;
 
-use harper_core::runtime::config::{should_enable_server, HarperConfig};
+use harper_core::runtime::config::{HarperConfig, should_enable_server};
 
 mod auth;
 

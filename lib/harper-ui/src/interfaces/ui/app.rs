@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use harper_core::core::plan::{PlanLoopOutcome, PlanLoopStage};
-use harper_core::core::Message;
-use harper_core::memory::session_service::GlobalStats;
 use harper_core::ResolvedAgents;
+use harper_core::core::Message;
+use harper_core::core::plan::{PlanLoopOutcome, PlanLoopStage};
+use harper_core::memory::session_service::GlobalStats;
 use harper_core::{ApprovalProfile, AuthSession, ExecutionStrategy, PlanState, SandboxProfile};
 use ratatui::layout::Rect;
 use ratatui::text::Line;
@@ -685,11 +685,7 @@ impl TuiApp {
     }
 
     pub fn profile_action_count(&self) -> usize {
-        if self.auth_session.is_some() {
-            2
-        } else {
-            3
-        }
+        if self.auth_session.is_some() { 2 } else { 3 }
     }
 
     pub fn execution_policy_row_count(&self) -> usize {
@@ -1017,11 +1013,12 @@ mod tests {
             app.message.as_ref().map(|message| &message.message_type),
             Some(MessageType::Status)
         ));
-        assert!(app
-            .message
-            .as_ref()
-            .and_then(|message| message.expires_at)
-            .is_some());
+        assert!(
+            app.message
+                .as_ref()
+                .and_then(|message| message.expires_at)
+                .is_some()
+        );
 
         if let Some(message) = &mut app.message {
             message.expires_at = Some(Instant::now() - Duration::from_millis(1));

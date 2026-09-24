@@ -705,10 +705,12 @@ mod tests {
             vec!["lib/harper-ui/src/interfaces/ui/widgets.rs".to_string()]
         );
         assert_eq!(structured.validation_plan.len(), 1);
-        assert!(authoring
-            .edit_scope
-            .iter()
-            .any(|path| path == "lib/harper-ui/src/interfaces/ui/widgets.rs"));
+        assert!(
+            authoring
+                .edit_scope
+                .iter()
+                .any(|path| path == "lib/harper-ui/src/interfaces/ui/widgets.rs")
+        );
     }
 
     #[test]
@@ -800,10 +802,11 @@ mod tests {
         assert!(plan.items[0].job_id.is_none());
         assert_eq!(plan.items[1].status, PlanStepStatus::InProgress);
         assert_eq!(plan.runtime.as_ref().map(|rt| rt.jobs.len()), Some(1));
-        assert!(plan
-            .runtime
-            .as_ref()
-            .is_some_and(|rt| rt.active_job_id.is_none()));
+        assert!(
+            plan.runtime
+                .as_ref()
+                .is_some_and(|rt| rt.active_job_id.is_none())
+        );
         assert!(matches!(
             plan.runtime.as_ref().and_then(|rt| rt.followup.as_ref()),
             Some(crate::core::plan::PlanFollowup::Checkpoint { .. })
@@ -1039,10 +1042,11 @@ mod tests {
             .expect("load plan")
             .expect("plan present");
         assert_eq!(plan.items.len(), 1);
-        assert!(plan
-            .runtime
-            .as_ref()
-            .is_none_or(|runtime| runtime.followup.is_none()));
+        assert!(
+            plan.runtime
+                .as_ref()
+                .is_none_or(|runtime| runtime.followup.is_none())
+        );
     }
 
     #[test]
@@ -1079,16 +1083,21 @@ mod tests {
             .expect("plan present");
         assert_eq!(plan.items.len(), 2);
         assert_eq!(plan.items[0].status, PlanStepStatus::InProgress);
-        assert!(plan.items[0]
-            .step
-            .contains("Revise approach for blocked step: Patch failing handler"));
+        assert!(
+            plan.items[0]
+                .step
+                .contains("Revise approach for blocked step: Patch failing handler")
+        );
         assert_eq!(plan.items[1].status, PlanStepStatus::Pending);
-        assert!(plan.items[1]
-            .step
-            .contains("Validate revised approach for: Patch failing handler"));
-        assert!(plan
-            .runtime
-            .as_ref()
-            .is_none_or(|runtime| runtime.followup.is_none()));
+        assert!(
+            plan.items[1]
+                .step
+                .contains("Validate revised approach for: Patch failing handler")
+        );
+        assert!(
+            plan.runtime
+                .as_ref()
+                .is_none_or(|runtime| runtime.followup.is_none())
+        );
     }
 }

@@ -17,11 +17,11 @@
 //! This module provides functions for storing and retrieving chat sessions
 //! and messages using SQLite as the backend.
 
+use crate::core::Message;
 use crate::core::agents::ResolvedAgents;
 use crate::core::error::HarperResult;
 use crate::core::plan::{PlanRuntime, PlanState};
-use crate::core::Message;
-use rusqlite::{params, Connection};
+use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
@@ -812,7 +812,9 @@ mod tests {
         assert!(save_session_for_user(&conn, "session-1", "user-a").expect("first claim"));
         assert!(session_belongs_to_user(&conn, "session-1", "user-a").expect("ownership lookup"));
         assert!(!save_session_for_user(&conn, "session-1", "user-b").expect("second claim denied"));
-        assert!(!session_belongs_to_user(&conn, "session-1", "user-b").expect("other owner lookup"));
+        assert!(
+            !session_belongs_to_user(&conn, "session-1", "user-b").expect("other owner lookup")
+        );
     }
 
     #[test]
@@ -866,9 +868,11 @@ mod tests {
         assert!(keys_b.contains("run_command:cargo test"));
 
         delete_session(&conn, "session-a").expect("delete session-a");
-        assert!(load_session_tool_dedup_keys(&conn, "session-a")
-            .expect("load after delete")
-            .is_empty());
+        assert!(
+            load_session_tool_dedup_keys(&conn, "session-a")
+                .expect("load after delete")
+                .is_empty()
+        );
         assert_eq!(
             load_session_tool_dedup_keys(&conn, "session-b")
                 .expect("load session-b after delete")

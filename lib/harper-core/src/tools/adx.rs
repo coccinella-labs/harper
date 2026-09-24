@@ -20,7 +20,7 @@ use crate::tools::parsing;
 use chrono::Utc;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::env;
 use std::fs;
 use std::io::{self, Write};
@@ -589,7 +589,7 @@ fn format_value(value: &Value) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{format_query_response, normalize_cluster_url, query_from_json, AdxQueryRequest};
+    use super::{AdxQueryRequest, format_query_response, normalize_cluster_url, query_from_json};
     use reqwest::Client;
     use serde_json::json;
 
@@ -605,9 +605,10 @@ mod tests {
         };
 
         let err = request.validate().expect_err("management command rejected");
-        assert!(err
-            .to_string()
-            .contains("management commands are not allowed"));
+        assert!(
+            err.to_string()
+                .contains("management commands are not allowed")
+        );
     }
 
     #[test]

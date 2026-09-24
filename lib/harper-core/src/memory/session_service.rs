@@ -17,11 +17,11 @@
 //! This module provides functionality for managing chat sessions,
 //! including listing, viewing, and exporting sessions.
 
+use crate::core::Message;
 use crate::core::agents::ResolvedAgents;
 use crate::core::error::{HarperError, HarperResult};
 use crate::core::io_traits::{Input, Output};
 use crate::core::plan::PlanState;
-use crate::core::Message;
 use crate::memory::cache::CacheAlignedBuffer;
 use crate::memory::storage::{
     load_active_agents, load_command_logs_for_session, load_history, load_latest_command_log,
@@ -687,7 +687,7 @@ impl<'a> SessionService<'a> {
 mod tests {
     use super::SessionService;
     use crate::memory::storage::{
-        init_db, insert_command_log, save_message, save_session_for_user, CommandLogRecord,
+        CommandLogRecord, init_db, insert_command_log, save_message, save_session_for_user,
     };
     use rusqlite::Connection;
 
