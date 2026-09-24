@@ -43,8 +43,8 @@ pub use crate::agent::chat::ChatService;
 
 // Re-export tools
 pub use crate::tools::{
-    ToolService, api, code_analysis, db, filesystem, firmware, git, github, image, parsing, plan,
-    screenpipe, shell, todo, web,
+    ToolExecOutcome, ToolService, api, code_analysis, db, filesystem, firmware, git, github, image,
+    parsing, plan, screenpipe, shell, todo, web,
 };
 
 // Re-export memory utilities

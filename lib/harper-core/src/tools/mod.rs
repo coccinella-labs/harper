@@ -76,6 +76,71 @@ struct PlanSyncOutcome {
     next_step: Option<String>,
 }
 
+/// Typed outcome of a tool execution at the service boundary.
+///
+/// Replaces the legacy `Option<(String, String)>` return so callers can branch
+/// on whether a tool ran, succeeded, or failed without inspecting strings.
+/// Project to the legacy pair only where the model or persistence still need
+/// prose (`call_llm_after_tool`, history messages).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ToolExecOutcome {
+    /// Tool not applicable: unknown name or missing required arguments.
+    NoTool,
+    /// Tool produced recoverable model-facing output.
+    Recoverable {
+        /// Next model-facing response after the post-tool LLM follow-up.
+        tool_result: String,
+        /// Tool output for history and persistence.
+        tool_content: String,
+    },
+    /// Tool failed; failure text is still model-facing so the loop can continue.
+    Fatal {
+        /// Next model-facing response after the post-tool LLM follow-up.
+        tool_result: String,
+        /// Tool output for history and persistence.
+        tool_content: String,
+    },
+}
+
+impl ToolExecOutcome {
+    #[must_use]
+    pub fn recoverable(tool_result: String, tool_content: String) -> Self {
+        Self::Recoverable {
+            tool_result,
+            tool_content,
+        }
+    }
+
+    #[must_use]
+    pub fn fatal(tool_result: String, tool_content: String) -> Self {
+        Self::Fatal {
+            tool_result,
+            tool_content,
+        }
+    }
+
+    /// Whether this outcome is a tool failure the model should see.
+    #[must_use]
+    pub fn is_fatal(&self) -> bool {
+        matches!(self, Self::Fatal { .. })
+    }
+
+    /// Project to the legacy `(tool_result, tool_content)` pair when a tool ran.
+    pub fn into_parts(self) -> Option<(String, String)> {
+        match self {
+            Self::NoTool => None,
+            Self::Recoverable {
+                tool_result,
+                tool_content,
+            }
+            | Self::Fatal {
+                tool_result,
+                tool_content,
+            } => Some((tool_result, tool_content)),
+        }
+    }
+}
+
 impl<'a> ToolService<'a> {
     fn parse_run_command_sandbox_intent(args: &serde_json::Value) -> shell::CommandSandboxIntent {
         shell::CommandSandboxIntent {
@@ -162,7 +227,7 @@ impl<'a> ToolService<'a> {
         history: &[Message],
         tool_call: &ToolCall,
         web_search_enabled: bool,
-    ) -> Result<Option<(String, String)>, HarperError> {
+    ) -> Result<ToolExecOutcome, HarperError> {
         let raw_response = tool_call.to_raw_string();
 
         // MCP tool call
@@ -204,7 +269,7 @@ impl<'a> ToolService<'a> {
         history: &[Message],
         response: &str,
         web_search_enabled: bool,
-    ) -> Result<Option<(String, String)>, HarperError> {
+    ) -> Result<ToolExecOutcome, HarperError> {
         // Fallback to old bracket format
         if response.to_uppercase().starts_with(tools::RUN_COMMAND) {
             self.sync_plan_before_tool("run_command")?;
@@ -226,7 +291,7 @@ impl<'a> ToolService<'a> {
             let final_response = self
                 .call_llm_after_tool(client, history, response, &command_result)
                 .await?;
-            Ok(Some((final_response, command_result)))
+            Ok(ToolExecOutcome::recoverable(final_response, command_result))
         } else if response.to_uppercase().starts_with(tools::READ_FILE) {
             self.sync_plan_before_tool("read_file")?;
             let tool_result = filesystem::read_file(
@@ -239,7 +304,7 @@ impl<'a> ToolService<'a> {
             let final_response = self
                 .call_llm_after_tool(client, history, response, &tool_result)
                 .await?;
-            Ok(Some((final_response, tool_result)))
+            Ok(ToolExecOutcome::recoverable(final_response, tool_result))
         } else if response.to_uppercase().starts_with(tools::WRITE_FILE) {
             self.sync_plan_before_tool("write_file")?;
             let tool_result = filesystem::write_file(
@@ -252,7 +317,7 @@ impl<'a> ToolService<'a> {
             let final_response = self
                 .call_llm_after_tool(client, history, response, &tool_result)
                 .await?;
-            Ok(Some((final_response, tool_result)))
+            Ok(ToolExecOutcome::recoverable(final_response, tool_result))
         } else if response.to_uppercase().starts_with(tools::SEARCH_REPLACE) {
             self.sync_plan_before_tool("search_replace")?;
             let tool_result = filesystem::search_replace(
@@ -265,7 +330,7 @@ impl<'a> ToolService<'a> {
             let final_response = self
                 .call_llm_after_tool(client, history, response, &tool_result)
                 .await?;
-            Ok(Some((final_response, tool_result)))
+            Ok(ToolExecOutcome::recoverable(final_response, tool_result))
         } else if response.to_uppercase().starts_with(tools::TODO) {
             self.sync_plan_before_tool("todo")?;
             self.execute_sync_tool(client, history, response, |conn, response| {
@@ -281,7 +346,7 @@ impl<'a> ToolService<'a> {
             let final_response = self
                 .call_llm_after_tool(client, history, response, &search_result)
                 .await?;
-            Ok(Some((final_response, search_result)))
+            Ok(ToolExecOutcome::recoverable(final_response, search_result))
         } else if response.to_uppercase().starts_with(git_tools::GIT_STATUS) {
             self.sync_plan_before_tool("git_status")?;
             self.execute_sync_tool(client, history, response, |_, _| git::git_status())
@@ -296,14 +361,14 @@ impl<'a> ToolService<'a> {
             let final_response = self
                 .call_llm_after_tool(client, history, response, &commit_result)
                 .await?;
-            Ok(Some((final_response, commit_result)))
+            Ok(ToolExecOutcome::recoverable(final_response, commit_result))
         } else if response.to_uppercase().starts_with(git_tools::GIT_ADD) {
             self.sync_plan_before_tool("git_add")?;
             let add_result = git::git_add(response, self.approver.clone()).await?;
             let final_response = self
                 .call_llm_after_tool(client, history, response, &add_result)
                 .await?;
-            Ok(Some((final_response, add_result)))
+            Ok(ToolExecOutcome::recoverable(final_response, add_result))
         } else if response.to_uppercase().starts_with(tools::GITHUB_ISSUE) {
             self.sync_plan_before_tool("github_issue")?;
             self.execute_sync_tool(client, history, response, |_, response| {
@@ -322,7 +387,7 @@ impl<'a> ToolService<'a> {
             let final_response = self
                 .call_llm_after_tool(client, history, response, &api_result)
                 .await?;
-            Ok(Some((final_response, api_result)))
+            Ok(ToolExecOutcome::recoverable(final_response, api_result))
         } else if response.to_uppercase().starts_with(tools::CODE_ANALYZE) {
             self.sync_plan_before_tool("code_analyze")?;
             self.execute_sync_tool(client, history, response, |_, response| {
@@ -340,14 +405,14 @@ impl<'a> ToolService<'a> {
             let final_response = self
                 .call_llm_after_tool(client, history, response, &tool_result)
                 .await?;
-            Ok(Some((final_response, tool_result)))
+            Ok(ToolExecOutcome::recoverable(final_response, tool_result))
         } else if response.to_uppercase().starts_with(tools::DB_QUERY) {
             self.sync_plan_before_tool("db_query")?;
             let tool_result = db::run_query(response, self.approver.clone()).await?;
             let final_response = self
                 .call_llm_after_tool(client, history, response, &tool_result)
                 .await?;
-            Ok(Some((final_response, tool_result)))
+            Ok(ToolExecOutcome::recoverable(final_response, tool_result))
         } else if response.to_uppercase().starts_with(tools::ADX_QUERY) {
             self.sync_plan_before_tool("adx_query")?;
             let args = adx::args_from_bracket_call(response)?;
@@ -355,7 +420,7 @@ impl<'a> ToolService<'a> {
             let final_response = self
                 .call_llm_after_tool(client, history, response, &tool_result)
                 .await?;
-            Ok(Some((final_response, tool_result)))
+            Ok(ToolExecOutcome::recoverable(final_response, tool_result))
         } else if response.to_uppercase().starts_with(tools::IMAGE_INFO) {
             self.sync_plan_before_tool("image_info")?;
             self.execute_sync_tool(client, history, response, |_, response| {
@@ -374,7 +439,7 @@ impl<'a> ToolService<'a> {
             let final_response = self
                 .call_llm_after_tool(client, history, response, &search_result)
                 .await?;
-            Ok(Some((final_response, search_result)))
+            Ok(ToolExecOutcome::recoverable(final_response, search_result))
         } else if response.to_uppercase().starts_with(tools::FIRMWARE) {
             self.sync_plan_before_tool("firmware")?;
             self.execute_sync_tool(client, history, response, |_, response| {
@@ -382,7 +447,7 @@ impl<'a> ToolService<'a> {
             })
             .await
         } else {
-            Ok(None)
+            Ok(ToolExecOutcome::NoTool)
         }
     }
 
@@ -395,7 +460,7 @@ impl<'a> ToolService<'a> {
         args: &serde_json::Value,
         raw_response: &str,
         web_search_enabled: bool,
-    ) -> Result<Option<(String, String)>, HarperError> {
+    ) -> Result<ToolExecOutcome, HarperError> {
         self.sync_plan_before_tool(tool_name)?;
         match tool_name {
             "run_command" => {
@@ -420,18 +485,18 @@ impl<'a> ToolService<'a> {
                     let final_response = self
                         .call_llm_after_tool(client, history, raw_response, &command_result)
                         .await?;
-                    Ok(Some((final_response, command_result)))
+                    Ok(ToolExecOutcome::recoverable(final_response, command_result))
                 } else {
-                    Ok(None)
+                    Ok(ToolExecOutcome::NoTool)
                 }
             }
 
             "search" => {
                 if !web_search_enabled {
-                    return Ok(Some((
+                    return Ok(ToolExecOutcome::fatal(
                         "Web search is off. Enable web mode and try again.".to_string(),
                         "Web search is disabled for this session.".to_string(),
-                    )));
+                    ));
                 }
                 if let Some(query) = args.get("query").and_then(|v| v.as_str()) {
                     let bracket_command = format!("[SEARCH: {}]", query);
@@ -439,9 +504,9 @@ impl<'a> ToolService<'a> {
                     let final_response = self
                         .call_llm_after_tool(client, history, raw_response, &search_result)
                         .await?;
-                    Ok(Some((final_response, search_result)))
+                    Ok(ToolExecOutcome::recoverable(final_response, search_result))
                 } else {
-                    Ok(None)
+                    Ok(ToolExecOutcome::NoTool)
                 }
             }
 
@@ -458,9 +523,9 @@ impl<'a> ToolService<'a> {
                     let final_response = self
                         .call_llm_after_tool(client, history, raw_response, &read_result)
                         .await?;
-                    Ok(Some((final_response, read_result)))
+                    Ok(ToolExecOutcome::recoverable(final_response, read_result))
                 } else {
-                    Ok(None)
+                    Ok(ToolExecOutcome::NoTool)
                 }
             }
 
@@ -479,9 +544,9 @@ impl<'a> ToolService<'a> {
                     let final_response = self
                         .call_llm_after_tool(client, history, raw_response, &write_result)
                         .await?;
-                    Ok(Some((final_response, write_result)))
+                    Ok(ToolExecOutcome::recoverable(final_response, write_result))
                 } else {
-                    Ok(None)
+                    Ok(ToolExecOutcome::NoTool)
                 }
             }
             "search_replace" => {
@@ -503,9 +568,9 @@ impl<'a> ToolService<'a> {
                     let final_response = self
                         .call_llm_after_tool(client, history, raw_response, &replace_result)
                         .await?;
-                    Ok(Some((final_response, replace_result)))
+                    Ok(ToolExecOutcome::recoverable(final_response, replace_result))
                 } else {
-                    Ok(None)
+                    Ok(ToolExecOutcome::NoTool)
                 }
             }
             "todo" => {
@@ -532,21 +597,24 @@ impl<'a> ToolService<'a> {
                         _ => "".to_string(),
                     };
                     if bracket_command.is_empty() {
-                        return Ok(None);
+                        return Ok(ToolExecOutcome::NoTool);
                     }
                     let todo_result = todo::manage_todo(self.conn, &bracket_command)?;
                     let final_response = self
                         .call_llm_after_tool(client, history, raw_response, &todo_result)
                         .await?;
-                    Ok(Some((final_response, todo_result)))
+                    Ok(ToolExecOutcome::recoverable(final_response, todo_result))
                 } else {
-                    Ok(None)
+                    Ok(ToolExecOutcome::NoTool)
                 }
             }
             "adx_query" | "azure_data_explorer" => {
                 let query_result =
                     adx::query_from_json(client, args, self.approver.clone()).await?;
-                Ok(Some((query_result.clone(), query_result)))
+                Ok(ToolExecOutcome::recoverable(
+                    query_result.clone(),
+                    query_result,
+                ))
             }
             "update_plan" => {
                 let Some(session_id) = self.session_id else {
@@ -558,7 +626,7 @@ impl<'a> ToolService<'a> {
                 let final_response = self
                     .call_llm_after_tool(client, history, raw_response, &plan_result)
                     .await?;
-                Ok(Some((final_response, plan_result)))
+                Ok(ToolExecOutcome::recoverable(final_response, plan_result))
             }
             "codebase_investigator" => {
                 let action = args.get("action").and_then(|v| v.as_str());
@@ -593,24 +661,24 @@ impl<'a> ToolService<'a> {
                         let final_response = self
                             .call_llm_after_tool(client, history, raw_response, &tool_result)
                             .await?;
-                        return Ok(Some((final_response, tool_result)));
+                        return Ok(ToolExecOutcome::recoverable(final_response, tool_result));
                     }
                 }
-                Ok(None)
+                Ok(ToolExecOutcome::NoTool)
             }
             "git_status" => {
                 let status_result = git::git_status()?;
                 let final_response = self
                     .call_llm_after_tool(client, history, raw_response, &status_result)
                     .await?;
-                Ok(Some((final_response, status_result)))
+                Ok(ToolExecOutcome::recoverable(final_response, status_result))
             }
             "git_diff" => {
                 let diff_result = git::git_diff()?;
                 let final_response = self
                     .call_llm_after_tool(client, history, raw_response, &diff_result)
                     .await?;
-                Ok(Some((final_response, diff_result)))
+                Ok(ToolExecOutcome::recoverable(final_response, diff_result))
             }
             "git_add" => {
                 let files = args.get("files").and_then(|v| v.as_str());
@@ -619,7 +687,7 @@ impl<'a> ToolService<'a> {
                 let final_response = self
                     .call_llm_after_tool(client, history, raw_response, &add_result)
                     .await?;
-                Ok(Some((final_response, add_result)))
+                Ok(ToolExecOutcome::recoverable(final_response, add_result))
             }
             "git_commit" => {
                 if let Some(message) = args.get("message").and_then(|v| v.as_str()) {
@@ -629,9 +697,9 @@ impl<'a> ToolService<'a> {
                     let final_response = self
                         .call_llm_after_tool(client, history, raw_response, &commit_result)
                         .await?;
-                    Ok(Some((final_response, commit_result)))
+                    Ok(ToolExecOutcome::recoverable(final_response, commit_result))
                 } else {
-                    Ok(None)
+                    Ok(ToolExecOutcome::NoTool)
                 }
             }
             "list_changed_files" => {
@@ -660,14 +728,14 @@ impl<'a> ToolService<'a> {
                 let final_response = self
                     .call_llm_after_tool(client, history, raw_response, &files_result)
                     .await?;
-                Ok(Some((final_response, files_result)))
+                Ok(ToolExecOutcome::recoverable(final_response, files_result))
             }
             "firmware_list" => {
                 let result = firmware::handle_firmware_command("[FIRMWARE list]")?;
                 let final_response = self
                     .call_llm_after_tool(client, history, raw_response, &result)
                     .await?;
-                Ok(Some((final_response, result)))
+                Ok(ToolExecOutcome::recoverable(final_response, result))
             }
             "firmware_info" => {
                 if let Some(device) = args.get("device").and_then(|v| v.as_str()) {
@@ -676,9 +744,9 @@ impl<'a> ToolService<'a> {
                     let final_response = self
                         .call_llm_after_tool(client, history, raw_response, &result)
                         .await?;
-                    Ok(Some((final_response, result)))
+                    Ok(ToolExecOutcome::recoverable(final_response, result))
                 } else {
-                    Ok(None)
+                    Ok(ToolExecOutcome::NoTool)
                 }
             }
             "firmware_gpio" => {
@@ -689,12 +757,12 @@ impl<'a> ToolService<'a> {
                     let final_response = self
                         .call_llm_after_tool(client, history, raw_response, &result)
                         .await?;
-                    Ok(Some((final_response, result)))
+                    Ok(ToolExecOutcome::recoverable(final_response, result))
                 } else {
-                    Ok(None)
+                    Ok(ToolExecOutcome::NoTool)
                 }
             }
-            _ => Ok(None),
+            _ => Ok(ToolExecOutcome::NoTool),
         }
     }
 
@@ -706,13 +774,13 @@ impl<'a> ToolService<'a> {
         tool_name: &str,
         args: &serde_json::Value,
         raw_response: &str,
-    ) -> Result<Option<(String, String)>, HarperError> {
+    ) -> Result<ToolExecOutcome, HarperError> {
         let Some(mcp_client) = self.mcp_client else {
             let error_msg = "Error: MCP client not configured".to_string();
             let final_response = self
                 .call_llm_after_tool(client, history, raw_response, &error_msg)
                 .await?;
-            return Ok(Some((final_response, error_msg)));
+            return Ok(ToolExecOutcome::fatal(final_response, error_msg));
         };
 
         match mcp_client.call_tool(tool_name, args.clone()).await {
@@ -761,14 +829,14 @@ impl<'a> ToolService<'a> {
                 let final_response = self
                     .call_llm_after_tool(client, history, raw_response, &tool_result)
                     .await?;
-                Ok(Some((final_response, tool_result)))
+                Ok(ToolExecOutcome::recoverable(final_response, tool_result))
             }
             Err(e) => {
                 let error_msg = format!("MCP tool call failed: {}", e);
                 let final_response = self
                     .call_llm_after_tool(client, history, raw_response, &error_msg)
                     .await?;
-                Ok::<Option<(String, String)>, HarperError>(Some((final_response, error_msg)))
+                Ok(ToolExecOutcome::fatal(final_response, error_msg))
             }
         }
     }
@@ -780,7 +848,7 @@ impl<'a> ToolService<'a> {
         history: &[Message],
         response: &str,
         tool_fn: F,
-    ) -> Result<Option<(String, String)>, HarperError>
+    ) -> Result<ToolExecOutcome, HarperError>
     where
         F: FnOnce(Option<&Connection>, &str) -> HarperResult<String>,
     {
@@ -788,7 +856,7 @@ impl<'a> ToolService<'a> {
         let final_response = self
             .call_llm_after_tool(client, history, response, &tool_result)
             .await?;
-        Ok(Some((final_response, tool_result)))
+        Ok(ToolExecOutcome::recoverable(final_response, tool_result))
     }
 
     /// Call LLM after tool usage
@@ -1482,7 +1550,7 @@ fn extract_target_paths_from_json(
 
 #[cfg(test)]
 mod tests {
-    use super::{PlanSyncOutcome, ToolService};
+    use super::{PlanSyncOutcome, ToolExecOutcome, ToolService};
     use crate::core::plan::{PlanItem, PlanState, PlanStepStatus};
     use crate::core::{ApiConfig, ApiProvider};
     use crate::runtime::config::ExecPolicyConfig;
@@ -1498,6 +1566,33 @@ mod tests {
             base_url: "https://api.openai.com/v1/chat/completions".to_string(),
             model_name: "gpt-5.5".to_string(),
         }
+    }
+
+    #[test]
+    fn tool_exec_outcome_recoverable_projects_to_legacy_pair() {
+        let outcome = ToolExecOutcome::recoverable("reply".to_string(), "content".to_string());
+        assert!(!outcome.is_fatal());
+        assert_eq!(
+            outcome.into_parts(),
+            Some(("reply".to_string(), "content".to_string()))
+        );
+    }
+
+    #[test]
+    fn tool_exec_outcome_fatal_projects_to_legacy_pair_and_flags_failure() {
+        let outcome = ToolExecOutcome::fatal("reply".to_string(), "content".to_string());
+        assert!(outcome.is_fatal());
+        assert_eq!(
+            outcome.into_parts(),
+            Some(("reply".to_string(), "content".to_string()))
+        );
+    }
+
+    #[test]
+    fn tool_exec_outcome_no_tool_has_no_legacy_pair() {
+        let outcome = ToolExecOutcome::NoTool;
+        assert!(!outcome.is_fatal());
+        assert_eq!(outcome.into_parts(), None);
     }
 
     #[test]
@@ -1546,14 +1641,21 @@ mod tests {
                 false,
             )
             .await
-            .expect("disabled search handling")
-            .expect("user-facing response");
+            .expect("disabled search handling");
 
+        assert!(result.is_fatal());
+        let (tool_result, tool_content) = match result {
+            super::ToolExecOutcome::Fatal {
+                tool_result,
+                tool_content,
+            } => (tool_result, tool_content),
+            other => panic!("expected fatal outcome, got {other:?}"),
+        };
         assert_eq!(
-            result.0,
+            tool_result,
             "Web search is off. Enable web mode and try again."
         );
-        assert_eq!(result.1, "Web search is disabled for this session.");
+        assert_eq!(tool_content, "Web search is disabled for this session.");
     }
 
     #[tokio::test]
@@ -1573,11 +1675,18 @@ mod tests {
                 false,
             )
             .await
-            .expect("adx guidance")
-            .expect("terminal response");
+            .expect("adx guidance");
 
-        assert_eq!(result.0, result.1);
-        assert!(result.0.contains("needs a `query` field"));
+        assert!(!result.is_fatal());
+        let (tool_result, tool_content) = match result {
+            super::ToolExecOutcome::Recoverable {
+                tool_result,
+                tool_content,
+            } => (tool_result, tool_content),
+            other => panic!("expected recoverable outcome, got {other:?}"),
+        };
+        assert_eq!(tool_result, tool_content);
+        assert!(tool_result.contains("needs a `query` field"));
     }
 
     #[test]

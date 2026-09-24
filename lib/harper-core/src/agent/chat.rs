@@ -31,6 +31,7 @@ use crate::memory::storage::CommandLogEntry;
 use crate::parsing;
 use crate::runtime::config::{ExecPolicyConfig, ExecutionStrategy};
 use crate::runtime::scheduler::{TaskPriority, TaskScheduler};
+use crate::tools::ToolExecOutcome;
 use crate::tools::ToolService;
 use crate::tools::shell::CommandAuditContext;
 
@@ -1386,7 +1387,7 @@ impl<'a> ChatService<'a> {
                     );
                     return Ok(clarification);
                 }
-                let tool_option = self
+                let tool_outcome = self
                     .dispatcher
                     .dispatch(
                         ToolDispatchContext {
@@ -1405,107 +1406,117 @@ impl<'a> ChatService<'a> {
                     )
                     .await?;
 
-                if let Some((tool_result, tool_content)) = tool_option {
-                    self.notify_command_activity(session_id);
-                    let mut terminal_tool_result = false;
-                    if matches!(tool_call.name.as_str(), "adx_query" | "azure_data_explorer") {
-                        terminal_tool_result = true;
+                match tool_outcome {
+                    ToolExecOutcome::NoTool => {
+                        broke_out_of_rounds = true;
+                        break 'round;
                     }
-                    if tool_call.name == "update_plan" {
-                        saw_plan_update = true;
-                        if let Some(authoring_request_context) = authoring_context.as_ref() {
-                            let _ = crate::tools::plan::seed_plan_authoring_context(
+                    ToolExecOutcome::Recoverable {
+                        tool_result,
+                        tool_content,
+                    }
+                    | ToolExecOutcome::Fatal {
+                        tool_result,
+                        tool_content,
+                    } => {
+                        self.notify_command_activity(session_id);
+                        let mut terminal_tool_result = false;
+                        if matches!(tool_call.name.as_str(), "adx_query" | "azure_data_explorer") {
+                            terminal_tool_result = true;
+                        }
+                        if tool_call.name == "update_plan" {
+                            saw_plan_update = true;
+                            if let Some(authoring_request_context) = authoring_context.as_ref() {
+                                let _ = crate::tools::plan::seed_plan_authoring_context(
+                                    self.conn,
+                                    session_id,
+                                    &last_user_msg,
+                                    authoring_request_context
+                                        .candidate_paths
+                                        .iter()
+                                        .map(|path| path.display().to_string())
+                                        .collect(),
+                                );
+                            }
+                            let _ = crate::tools::plan::mark_plan_authoring_plan_created(
+                                self.conn, session_id,
+                            );
+                        }
+                        if matches!(
+                            tool_call.name.as_str(),
+                            "read_file"
+                                | "codebase_investigator"
+                                | "git_diff"
+                                | "git_status"
+                                | "list_changed_files"
+                                | "grep"
+                        ) {
+                            saw_authoring_inspection = true;
+                            let inspected = tool_call
+                                .target_paths()
+                                .into_iter()
+                                .map(Self::normalize_authoring_path)
+                                .collect::<Vec<_>>();
+                            inspected_paths.extend(inspected.iter().cloned());
+                            let _ = crate::tools::plan::mark_plan_authoring_inspection(
                                 self.conn,
                                 session_id,
-                                &last_user_msg,
-                                authoring_request_context
-                                    .candidate_paths
-                                    .iter()
+                                inspected
+                                    .into_iter()
                                     .map(|path| path.display().to_string())
                                     .collect(),
                             );
                         }
-                        let _ = crate::tools::plan::mark_plan_authoring_plan_created(
-                            self.conn, session_id,
-                        );
-                    }
-                    if matches!(
-                        tool_call.name.as_str(),
-                        "read_file"
-                            | "codebase_investigator"
-                            | "git_diff"
-                            | "git_status"
-                            | "list_changed_files"
-                            | "grep"
-                    ) {
-                        saw_authoring_inspection = true;
-                        let inspected = tool_call
-                            .target_paths()
-                            .into_iter()
-                            .map(Self::normalize_authoring_path)
-                            .collect::<Vec<_>>();
-                        inspected_paths.extend(inspected.iter().cloned());
-                        let _ = crate::tools::plan::mark_plan_authoring_inspection(
-                            self.conn,
-                            session_id,
-                            inspected
+                        if matches!(tool_call.name.as_str(), "search_replace" | "write_file") {
+                            let edited = tool_call
+                                .target_paths()
                                 .into_iter()
-                                .map(|path| path.display().to_string())
-                                .collect(),
-                        );
-                    }
-                    if matches!(tool_call.name.as_str(), "search_replace" | "write_file") {
-                        let edited = tool_call
-                            .target_paths()
-                            .into_iter()
-                            .map(Self::normalize_authoring_path)
-                            .collect::<Vec<_>>();
-                        let _ = crate::tools::plan::mark_plan_authoring_edit_applied(
-                            self.conn,
-                            session_id,
-                            edited
-                                .into_iter()
-                                .map(|path| path.display().to_string())
-                                .collect(),
-                        );
-                    }
-                    if tool_call.name == "run_command"
-                        && Self::is_authoring_validation_command(&tool_call.to_raw_string())
-                    {
-                        let _ = crate::tools::plan::mark_plan_authoring_validated(
-                            self.conn, session_id,
-                        );
-                    }
-                    let rejected_by_user = tool_content.ends_with("cancelled by user");
-                    if rejected_by_user {
-                        loop_outcome = crate::core::plan::PlanLoopOutcome::Rejected;
-                        loop_feedback = Some("approval rejected".to_string());
-                        broke_out_of_rounds = true;
-                    } else {
-                        let _ = crate::memory::storage::insert_session_tool_dedup_key(
-                            self.conn,
-                            session_id,
-                            &dedupe_key,
-                        );
-                        executed_tool_calls.insert(dedupe_key);
-                    }
-                    last_tool_content = Some(tool_content.clone());
-                    let tool_message = Message {
-                        role: "system".to_string(),
-                        content: tool_content,
-                    };
-                    history.push(tool_message.clone());
-                    history_for_llm.push(tool_message);
-                    response = tool_result;
-                    if terminal_tool_result || rejected_by_user {
-                        if terminal_tool_result {
-                            broke_out_of_rounds = true;
+                                .map(Self::normalize_authoring_path)
+                                .collect::<Vec<_>>();
+                            let _ = crate::tools::plan::mark_plan_authoring_edit_applied(
+                                self.conn,
+                                session_id,
+                                edited
+                                    .into_iter()
+                                    .map(|path| path.display().to_string())
+                                    .collect(),
+                            );
                         }
-                        break 'round;
+                        if tool_call.name == "run_command"
+                            && Self::is_authoring_validation_command(&tool_call.to_raw_string())
+                        {
+                            let _ = crate::tools::plan::mark_plan_authoring_validated(
+                                self.conn, session_id,
+                            );
+                        }
+                        let rejected_by_user = tool_content.ends_with("cancelled by user");
+                        if rejected_by_user {
+                            loop_outcome = crate::core::plan::PlanLoopOutcome::Rejected;
+                            loop_feedback = Some("approval rejected".to_string());
+                            broke_out_of_rounds = true;
+                        } else {
+                            let _ = crate::memory::storage::insert_session_tool_dedup_key(
+                                self.conn,
+                                session_id,
+                                &dedupe_key,
+                            );
+                            executed_tool_calls.insert(dedupe_key);
+                        }
+                        last_tool_content = Some(tool_content.clone());
+                        let tool_message = Message {
+                            role: "system".to_string(),
+                            content: tool_content,
+                        };
+                        history.push(tool_message.clone());
+                        history_for_llm.push(tool_message);
+                        response = tool_result;
+                        if terminal_tool_result || rejected_by_user {
+                            if terminal_tool_result {
+                                broke_out_of_rounds = true;
+                            }
+                            break 'round;
+                        }
                     }
-                } else {
-                    broke_out_of_rounds = true;
-                    break 'round;
                 }
             }
         }

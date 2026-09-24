@@ -37,6 +37,7 @@ use crate::core::plan::PlanRuntime;
 use crate::core::tool_call::{ToolCall, ToolCallSource};
 use crate::core::{ApiConfig, ApiProvider, Message};
 use crate::runtime::config::ExecPolicyConfig;
+use crate::tools::ToolExecOutcome;
 
 /// Model-completion boundary.
 #[async_trait]
@@ -115,7 +116,7 @@ pub trait ToolDispatcher: Send + Sync {
         history: &[Message],
         tool_call: &ToolCall,
         web_search_enabled: bool,
-    ) -> Result<Option<(String, String)>, HarperError>;
+    ) -> Result<ToolExecOutcome, HarperError>;
 }
 
 /// Real tool execution: delegates to `ToolService::handle_tool_use`.
@@ -130,7 +131,7 @@ impl ToolDispatcher for RealToolDispatcher {
         history: &[Message],
         tool_call: &ToolCall,
         web_search_enabled: bool,
-    ) -> Result<Option<(String, String)>, HarperError> {
+    ) -> Result<ToolExecOutcome, HarperError> {
         let mut tool_service = crate::tools::ToolService::new(
             ctx.conn,
             ctx.config,
@@ -160,12 +161,12 @@ pub struct RecordedToolCall {
 /// Scripted tool execution that records calls and returns canned results.
 #[allow(clippy::type_complexity)]
 pub struct ScriptedToolDispatcher {
-    script: Mutex<VecDeque<Result<Option<(String, String)>, HarperError>>>,
+    script: Mutex<VecDeque<Result<ToolExecOutcome, HarperError>>>,
     calls: Mutex<Vec<RecordedToolCall>>,
 }
 
 impl ScriptedToolDispatcher {
-    pub fn new(script: Vec<Result<Option<(String, String)>, HarperError>>) -> Self {
+    pub fn new(script: Vec<Result<ToolExecOutcome, HarperError>>) -> Self {
         Self {
             script: Mutex::new(VecDeque::from(script)),
             calls: Mutex::new(Vec::new()),
@@ -187,7 +188,7 @@ impl ToolDispatcher for ScriptedToolDispatcher {
         _history: &[Message],
         tool_call: &ToolCall,
         _web_search_enabled: bool,
-    ) -> Result<Option<(String, String)>, HarperError> {
+    ) -> Result<ToolExecOutcome, HarperError> {
         self.calls
             .lock()
             .expect("calls lock")
@@ -449,10 +450,9 @@ mod tests {
     #[tokio::test]
     async fn normal_tool_round_runs_one_tool_then_final_prose() {
         let harness = ReplayHarness::new();
-        let dispatcher = Arc::new(ScriptedToolDispatcher::new(vec![Ok(Some((
-            "Tool executed".to_string(),
-            "all tests pass".to_string(),
-        )))]));
+        let dispatcher = Arc::new(ScriptedToolDispatcher::new(vec![Ok(
+            ToolExecOutcome::recoverable("Tool executed".to_string(), "all tests pass".to_string()),
+        )]));
         let completer = Arc::new(ScriptedCompleter::new(vec![
             Ok(openai_tool_call(
                 "run_command",
@@ -489,10 +489,9 @@ mod tests {
     #[tokio::test]
     async fn repeated_tool_call_is_silenced_with_retry_guidance() {
         let harness = ReplayHarness::new();
-        let dispatcher = Arc::new(ScriptedToolDispatcher::new(vec![Ok(Some((
-            "Tool executed".to_string(),
-            "all tests pass".to_string(),
-        )))]));
+        let dispatcher = Arc::new(ScriptedToolDispatcher::new(vec![Ok(
+            ToolExecOutcome::recoverable("Tool executed".to_string(), "all tests pass".to_string()),
+        )]));
         let twice = openai_tool_call("run_command", r#"{"command":"cargo test"}"#);
         let completer = Arc::new(ScriptedCompleter::new(vec![
             Ok("Running the test suite is a good idea.".to_string()),
@@ -522,10 +521,9 @@ mod tests {
     #[tokio::test]
     async fn persisted_dedup_keys_silence_tools_across_resumed_sessions() {
         let harness = ReplayHarness::new();
-        let first_dispatcher = Arc::new(ScriptedToolDispatcher::new(vec![Ok(Some((
-            "Tool executed".to_string(),
-            "all tests pass".to_string(),
-        )))]));
+        let first_dispatcher = Arc::new(ScriptedToolDispatcher::new(vec![Ok(
+            ToolExecOutcome::recoverable("Tool executed".to_string(), "all tests pass".to_string()),
+        )]));
         let first_completer = Arc::new(ScriptedCompleter::new(vec![
             Ok(openai_tool_call(
                 "run_command",
@@ -580,10 +578,9 @@ mod tests {
     async fn approval_rejection_persists_rejected_outcome() {
         let harness = ReplayHarness::new();
         let rejection = "Command execution cancelled by user".to_string();
-        let dispatcher = Arc::new(ScriptedToolDispatcher::new(vec![Ok(Some((
-            rejection.clone(),
-            rejection,
-        )))]));
+        let dispatcher = Arc::new(ScriptedToolDispatcher::new(vec![Ok(
+            ToolExecOutcome::recoverable(rejection.clone(), rejection),
+        )]));
         let completer = Arc::new(ScriptedCompleter::new(vec![Ok(openai_tool_call(
             "run_command",
             r#"{"command":"rm -rf /tmp/harper-test"}"#,
@@ -666,7 +663,12 @@ mod tests {
     async fn loop_runs_first_tool_round_plus_one_forced_retry_then_responds() {
         let harness = ReplayHarness::new();
         let results = (0..2)
-            .map(|i| Ok(Some((format!("result-{i}"), format!("content-{i}")))))
+            .map(|i| {
+                Ok(ToolExecOutcome::recoverable(
+                    format!("result-{i}"),
+                    format!("content-{i}"),
+                ))
+            })
             .collect();
         let dispatcher = Arc::new(ScriptedToolDispatcher::new(results));
         let tools = [
@@ -720,7 +722,12 @@ mod tests {
             calls
                 .iter()
                 .skip(1)
-                .map(|call| Ok(Some((call.clone(), "next".to_string()))))
+                .map(|call| {
+                    Ok(ToolExecOutcome::recoverable(
+                        call.clone(),
+                        "next".to_string(),
+                    ))
+                })
                 .collect(),
         ));
         let completer = Arc::new(ScriptedCompleter::new(vec![Ok(calls[0].clone())]));
@@ -754,10 +761,9 @@ mod tests {
     async fn runtime_activity_events_keep_loop_order() {
         let harness = ReplayHarness::new();
         let events = Arc::new(RecordingRuntimeEventSink::default());
-        let dispatcher = Arc::new(ScriptedToolDispatcher::new(vec![Ok(Some((
-            "done".to_string(),
-            "tool output".to_string(),
-        )))]));
+        let dispatcher = Arc::new(ScriptedToolDispatcher::new(vec![Ok(
+            ToolExecOutcome::recoverable("done".to_string(), "tool output".to_string()),
+        )]));
         let completer = Arc::new(ScriptedCompleter::new(vec![Ok(openai_tool_call(
             "run_command",
             r#"{"command":"cargo test"}"#,
