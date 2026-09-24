@@ -500,7 +500,7 @@ mod tests {
         ]));
 
         let mut history = vec![user_message("run cargo test")];
-        let (response, _runtime) = harness
+        let (response, runtime) = harness
             .replay(
                 completer,
                 dispatcher.clone(),
@@ -515,6 +515,8 @@ mod tests {
             Ok("This tool was already executed this round, consider a different tool.")
         ));
         assert_eq!(dispatcher.recorded_calls().len(), 1);
+        let runtime = runtime.expect("plan runtime persisted");
+        assert_eq!(runtime.last_outcome, Some(PlanLoopOutcome::Duplicate));
     }
 
     #[tokio::test]
@@ -552,7 +554,7 @@ mod tests {
         ))]));
 
         let mut second_history = vec![user_message("run cargo test again")];
-        let (second_response, _) = harness
+        let (second_response, second_runtime) = harness
             .replay(
                 second_completer,
                 second_dispatcher.clone(),
@@ -567,6 +569,41 @@ mod tests {
             second_dispatcher.recorded_calls().is_empty(),
             "persisted dedupe keys must suppress re-execution across resumed sessions"
         );
+        let second_runtime = second_runtime.expect("plan runtime persisted");
+        assert_eq!(
+            second_runtime.last_outcome,
+            Some(PlanLoopOutcome::Duplicate)
+        );
+    }
+
+    #[tokio::test]
+    async fn approval_rejection_persists_rejected_outcome() {
+        let harness = ReplayHarness::new();
+        let rejection = "Command execution cancelled by user".to_string();
+        let dispatcher = Arc::new(ScriptedToolDispatcher::new(vec![Ok(Some((
+            rejection.clone(),
+            rejection,
+        )))]));
+        let completer = Arc::new(ScriptedCompleter::new(vec![Ok(openai_tool_call(
+            "run_command",
+            r#"{"command":"rm -rf /tmp/harper-test"}"#,
+        ))]));
+
+        let mut history = vec![user_message("delete something")];
+        let (response, runtime) = harness
+            .replay(
+                completer,
+                dispatcher,
+                default_policy(),
+                "session-rejected",
+                &mut history,
+            )
+            .await;
+
+        assert!(response.is_ok());
+        let runtime = runtime.expect("plan runtime persisted");
+        assert_eq!(runtime.last_outcome, Some(PlanLoopOutcome::Rejected));
+        assert_eq!(runtime.last_feedback.as_deref(), Some("approval rejected"));
     }
 
     #[tokio::test]
@@ -668,7 +705,7 @@ mod tests {
         );
         let runtime = runtime.expect("plan runtime persisted");
         assert_eq!(runtime.loop_stage, Some(PlanLoopStage::Feedback));
-        assert_eq!(runtime.last_outcome, Some(PlanLoopOutcome::Responded));
+        assert_eq!(runtime.last_outcome, Some(PlanLoopOutcome::MaxToolRounds));
     }
 
     #[tokio::test]
@@ -708,7 +745,7 @@ mod tests {
         );
         let runtime = runtime.expect("plan runtime persisted");
         assert_eq!(runtime.loop_stage, Some(PlanLoopStage::Feedback));
-        assert_eq!(runtime.last_outcome, Some(PlanLoopOutcome::Responded));
+        assert_eq!(runtime.last_outcome, Some(PlanLoopOutcome::MaxToolRounds));
     }
 
     #[tokio::test]

@@ -1131,6 +1131,9 @@ impl<'a> ChatService<'a> {
         // unaffected by this budget.
         let mut forced_tool_retry = false;
         let mut saw_retry_guidance = false;
+        let mut loop_outcome = crate::core::plan::PlanLoopOutcome::Responded;
+        let mut loop_feedback = Some("response delivered".to_string());
+        let mut broke_out_of_rounds = false;
         let persisted_authoring = self
             .prompt_id
             .as_deref()
@@ -1272,6 +1275,7 @@ impl<'a> ChatService<'a> {
                     };
                     continue;
                 }
+                broke_out_of_rounds = true;
                 break;
             }
 
@@ -1330,17 +1334,40 @@ impl<'a> ChatService<'a> {
                 }
                 if executed_tool_calls.contains(&dedupe_key) {
                     if saw_retry_guidance {
+                        self.persist_loop_stage(
+                            session_id,
+                            crate::core::plan::PlanLoopStage::Feedback,
+                            Some("duplicate tool call".to_string()),
+                        );
+                        self.persist_loop_outcome(
+                            session_id,
+                            crate::core::plan::PlanLoopOutcome::Duplicate,
+                            Some("duplicate tool call".to_string()),
+                        );
                         return Ok(
                             "This tool was already executed this round, consider a different tool."
                                 .to_string(),
                         );
                     }
                     if let Some(content) = last_tool_content {
+                        self.persist_loop_stage(
+                            session_id,
+                            crate::core::plan::PlanLoopStage::Feedback,
+                            Some("duplicate tool call".to_string()),
+                        );
+                        self.persist_loop_outcome(
+                            session_id,
+                            crate::core::plan::PlanLoopOutcome::Duplicate,
+                            Some("duplicate tool call".to_string()),
+                        );
                         if matches!(tool_call.name.as_str(), "adx_query" | "azure_data_explorer") {
                             return Ok(content);
                         }
                         return Ok(format!("Tool result:\n{}", content));
                     }
+                    loop_outcome = crate::core::plan::PlanLoopOutcome::Duplicate;
+                    loop_feedback = Some("duplicate tool call".to_string());
+                    broke_out_of_rounds = true;
                     break 'round;
                 }
                 if let Some(clarification) = Self::clarification_for_underspecified_tool_call(
@@ -1449,12 +1476,19 @@ impl<'a> ChatService<'a> {
                             self.conn, session_id,
                         );
                     }
-                    let _ = crate::memory::storage::insert_session_tool_dedup_key(
-                        self.conn,
-                        session_id,
-                        &dedupe_key,
-                    );
-                    executed_tool_calls.insert(dedupe_key);
+                    let rejected_by_user = tool_content.ends_with("cancelled by user");
+                    if rejected_by_user {
+                        loop_outcome = crate::core::plan::PlanLoopOutcome::Rejected;
+                        loop_feedback = Some("approval rejected".to_string());
+                        broke_out_of_rounds = true;
+                    } else {
+                        let _ = crate::memory::storage::insert_session_tool_dedup_key(
+                            self.conn,
+                            session_id,
+                            &dedupe_key,
+                        );
+                        executed_tool_calls.insert(dedupe_key);
+                    }
                     last_tool_content = Some(tool_content.clone());
                     let tool_message = Message {
                         role: "system".to_string(),
@@ -1463,25 +1497,33 @@ impl<'a> ChatService<'a> {
                     history.push(tool_message.clone());
                     history_for_llm.push(tool_message);
                     response = tool_result;
-                    if terminal_tool_result {
+                    if terminal_tool_result || rejected_by_user {
+                        if terminal_tool_result {
+                            broke_out_of_rounds = true;
+                        }
                         break 'round;
                     }
                 } else {
+                    broke_out_of_rounds = true;
                     break 'round;
                 }
             }
+        }
+        if !broke_out_of_rounds && loop_outcome == crate::core::plan::PlanLoopOutcome::Responded {
+            loop_outcome = crate::core::plan::PlanLoopOutcome::MaxToolRounds;
+            loop_feedback = Some("max tool rounds exhausted".to_string());
         }
 
         self.persist_loop_stage(
             session_id,
             crate::core::plan::PlanLoopStage::Feedback,
-            Some("response ready".to_string()),
+            Some(
+                loop_feedback
+                    .clone()
+                    .unwrap_or_else(|| "response ready".to_string()),
+            ),
         );
-        self.persist_loop_outcome(
-            session_id,
-            crate::core::plan::PlanLoopOutcome::Responded,
-            Some("response delivered".to_string()),
-        );
+        self.persist_loop_outcome(session_id, loop_outcome, loop_feedback);
 
         Ok(Self::finalize_assistant_response(
             &response,

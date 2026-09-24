@@ -2422,7 +2422,10 @@ fn loop_state_lines(
             }
             PlanLoopOutcome::Failed
             | PlanLoopOutcome::ReplanRequired
-            | PlanLoopOutcome::BackendUnavailable => Color::Rgb(239, 68, 68),
+            | PlanLoopOutcome::BackendUnavailable
+            | PlanLoopOutcome::MaxToolRounds
+            | PlanLoopOutcome::Rejected => Color::Rgb(239, 68, 68),
+            PlanLoopOutcome::Duplicate | PlanLoopOutcome::Cancelled => Color::Rgb(156, 163, 175),
         };
         lines.push(Line::styled(
             format!("last outcome: {}", format_loop_outcome(outcome)),
@@ -2471,6 +2474,10 @@ fn format_loop_outcome(outcome: &PlanLoopOutcome) -> &'static str {
         PlanLoopOutcome::ReplanRequired => "replan required",
         PlanLoopOutcome::Responded => "responded",
         PlanLoopOutcome::BackendUnavailable => "backend unavailable",
+        PlanLoopOutcome::MaxToolRounds => "max tool rounds",
+        PlanLoopOutcome::Duplicate => "duplicate tool call",
+        PlanLoopOutcome::Rejected => "rejected",
+        PlanLoopOutcome::Cancelled => "cancelled",
     }
 }
 
