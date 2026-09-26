@@ -572,24 +572,29 @@ mod tests {
     #[tokio::test]
     async fn read_file_routes_system_notice_through_sink_without_approver() {
         let _cwd_guard = CWD_GUARD.lock().await;
+        let temp = tempfile::tempdir().expect("tempdir");
+        let previous = std::env::current_dir().expect("cwd");
+        std::env::set_current_dir(temp.path()).expect("set cwd");
+        let cwd = std::env::current_dir().expect("current cwd");
+
+        let target = cwd.join("sample.txt");
+        std::fs::write(&target, "Filesystem operations tool sample\n").expect("write target");
+
         let sink = Arc::new(CapturingSink::default());
         let trait_sink: Arc<dyn RuntimeEventSink> = sink.clone();
         let result = read_file(
-            "[READ_FILE src/tools/filesystem.rs]",
+            "[READ_FILE sample.txt]",
             None,
             Some(&trait_sink),
             Some("session-1"),
         )
-        .await
-        .expect("read file");
+        .await;
 
-        assert!(result.contains("Filesystem operations tool"));
-        let expected = format!(
-            "Reading file: {}",
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("src/tools/filesystem.rs")
-                .to_string_lossy()
-        );
+        let _ = std::env::set_current_dir(previous);
+        let result = result.expect("read file");
+
+        assert!(result.contains("Filesystem operations tool sample"));
+        let expected = format!("Reading file: {}", target.to_string_lossy());
         assert_eq!(sink.activities(), vec![expected]);
     }
 }
