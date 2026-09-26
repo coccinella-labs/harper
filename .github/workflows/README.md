@@ -43,7 +43,7 @@ This directory contains all automation that runs in GitHub Actions for the Harpe
 | Stale | `stale-issues.yml` | Reminds on issues inactive for 30 days, adds `needs-response`, and closes them after 14 more days without a human reply. Issue comments and label changes run through the Harper app token. | Daily cron, manual dispatch, issue comments |
 | Rust Fix | `rust-auto-fix.yml` | Applies automated `cargo fmt`/`clippy --fix` patches via `coccinella-labs/rust-fix@v1` when `/rust-fix` comment is confirmed with `/confirm`. | Issue comment on PRs |
 | Cancel Runs | `cancel-runs.yml` | Cancels in-progress runs when `/cancel-runs` is commented on PRs via `coccinella-labs/cancel@v1`. Also triggers on `cancel-runs` label. | Issue comment on PRs, `cancel-runs` label |
-| Lockfiles | `update-lockfiles.yml` | Runs `cargo update` + `CARGO_BAZEL_REPIN=true bazel build :harper_bin` (repins `cargo-bazel-lock.json`), opens PR. PR creation runs through the Harper app token. | Weekly cron (Sunday midnight UTC), manual dispatch |
+| Lockfiles | `update-lockfiles.yml` | Runs `cargo update` + `CARGO_BAZEL_REPIN=true bazel build :harper_bin` (repins `cargo-bazel-lock.json`), opens PR. PR creation runs through the Harper app token. Generated dependency facts go to a single sticky `<!-- lockfile-summary -->` comment that `scripts/lockfile_summary.py` rewrites in place on every run that changes the lockfiles, so the summary cannot lag the diff it describes. The PR body stays hand-maintained, because `create-pull-request` overwrites title/body whenever it updates an existing PR. | Weekly cron (Sunday midnight UTC), manual dispatch, push to `cargo-lock-update` |
 | Homebrew | `update-homebrew-tap.yml` | Manually updates `coccinella-labs/homebrew-tap/Formula/harper-ai.rb` for a published `harper-*` release by downloading the release tarball, recomputing sha256, patching the formula, and opening a PR in the tap repo. Requires `HOMEBREW_TAP_TOKEN`. | Manual dispatch |
 | Windows Packages | `windows-packages.yml` | Generates Scoop and winget manifests from a published Windows release artifact and uploads them for package-channel submission. | `harper-[0-9]*` tag push, manual dispatch |
 | VS Code Extension | `vscode-extension.yml` | Packages the Harper Review VS Code extension and uploads the `.vsix` artifact for validation. | PRs touching extension files, manual dispatch |
@@ -90,4 +90,4 @@ Current rules:
 Feel free to expand this file with additional details (matrix descriptions, secrets used, etc.) as workflows evolve.
 
 ## Last Updated
-2026-09-11
+2026-09-26

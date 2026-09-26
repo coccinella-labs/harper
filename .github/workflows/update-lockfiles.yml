@@ -18,6 +18,18 @@ on:
   schedule:
     - cron: "0 0 * * 0" # Weekly on Sunday
   workflow_dispatch:
+  push:
+    branches:
+      - cargo-lock-update
+
+# A push to the lockfile branch re-runs this workflow so the generated summary
+# cannot lag behind the lockfile it describes. The trigger does not loop: a run
+# that finds no lockfile diff gives create-pull-request nothing to commit, so it
+# pushes nothing and queues no further run. `concurrency` additionally collapses
+# overlapping runs.
+concurrency:
+  group: lockfiles-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   update-lockfile:
@@ -26,12 +38,18 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      issues: write
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
       - id: app-token
         name: Create Harper app token
@@ -61,59 +79,33 @@ jobs:
           rm -f cargo-bazel-lock.json
           CARGO_BAZEL_REPIN=true bazel build :harper_bin 2>/dev/null || true
 
+      - name: Unit-test the summary generator
+        run: python3 scripts/test_lockfile_summary.py
+
       - name: Summarize lockfile changes
         id: summary
         run: |
-          python3 - << 'PYEOF' >> "$GITHUB_OUTPUT"
-          import re
-          import subprocess
+          set -euo pipefail
+          git fetch --no-tags origin "${{ github.event.repository.default_branch }}"
+          BASE="origin/${{ github.event.repository.default_branch }}"
+          python3 scripts/lockfile_summary.py \
+            --base-ref "$BASE" \
+            --output summary.md
+          {
+            echo "title<<TITLEEOF"
+            echo "[chore] update rust lockfiles"
+            echo "TITLEEOF"
+            echo "body<<BODYEOF"
+            cat <<'BODY'
+          ## Summary
 
-          diff = subprocess.run(
-              ["git", "diff", "Cargo.lock"], capture_output=True, text=True
-          ).stdout
-          bumps = []
-          current_name = None
-          old_version = None
-          for line in diff.splitlines():
-              name = re.match(r'[ +-]name = "(.*)"$', line)
-              if name:
-                  current_name = name.group(1)
-                  old_version = None
-                  continue
-              old = re.match(r'-version = "(.*)"$', line)
-              if old:
-                  old_version = old.group(1)
-                  continue
-              new = re.match(r'\+version = "(.*)"$', line)
-              if new and current_name and old_version:
-                  bumps.append((current_name, old_version, new.group(1)))
-                  old_version = None
-
-          if bumps:
-              short = ", ".join(f"{n} {o}->{v}" for n, o, v in bumps[:8])
-              if len(bumps) > 8:
-                  short += f", +{len(bumps) - 8} more"
-              title = f"[chore] update rust lockfiles ({short})"
-              print(f"title={title[:200]}")
-              print("body<<EOF")
-              print("## Summary")
-              print("- update `Cargo.lock`")
-              print("- repin `cargo-bazel-lock.json` to keep Bazel dependencies in sync")
-              print("")
-              print("## Bumps")
-              for name, old_version, new_version in bumps:
-                  print(f"- {name}: {old_version} -> {new_version}")
-              print("EOF")
-          else:
-              print("title=[chore] update rust lockfiles")
-              print("body<<EOF")
-              print("## Summary")
-              print("- update `Cargo.lock`")
-              print("- repin `cargo-bazel-lock.json` to keep Bazel dependencies in sync")
-              print("EOF")
-          PYEOF
+          Automated lockfile refresh. Generated facts are in the pinned comment below; this description is maintained by hand.
+          BODY
+            echo "BODYEOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Create PR
+        id: create-pr
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ steps.app-token.outputs.token }}
@@ -122,3 +114,43 @@ jobs:
           body: ${{ steps.summary.outputs.body }}
           branch: cargo-lock-update
           delete-branch: true
+
+      # The generated facts live in a pinned comment rather than the PR body.
+      # create-pull-request rewrites title and body on every run
+      # (github-helper.ts createOrUpdate calls pulls.update unconditionally), so
+      # a generated body would overwrite hand-written review notes on the next
+      # scheduled run. Updating a comment keeps the two surfaces separate.
+      - name: Update generated summary comment
+        if: steps.create-pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_NUMBER: ${{ steps.create-pr.outputs.pull-request-number }}
+          SUMMARY_FILE: ${{ github.workspace }}/summary.md
+          MARKER: "<!-- lockfile-summary -->"
+        run: |
+          set -euo pipefail
+          {
+            echo "$MARKER"
+            echo ""
+            cat "$SUMMARY_FILE"
+          } > summary-comment.md
+
+          # --slurp merges every page into one array so jq can pick the first
+          # match itself. Piping into `head -n 1` instead would close the pipe
+          # early, and under `set -o pipefail` the resulting SIGPIPE fails the
+          # step, which would post a duplicate comment on every run.
+          existing=$(gh api "repos/${{ github.repository }}/issues/$PR_NUMBER/comments" \
+            --paginate --slurp \
+            --jq 'add | map(select(.body | startswith(env.MARKER))) | first | .id // empty')
+
+          if [ -n "$existing" ]; then
+            gh api --method PATCH \
+              "repos/${{ github.repository }}/issues/comments/$existing" \
+              -F body=@summary-comment.md >/dev/null
+            echo "Updated comment $existing"
+          else
+            gh api --method POST \
+              "repos/${{ github.repository }}/issues/$PR_NUMBER/comments" \
+              -F body=@summary-comment.md >/dev/null
+            echo "Created summary comment"
+          fi

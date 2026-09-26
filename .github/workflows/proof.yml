@@ -33,3 +33,8 @@ jobs:
       - uses: coccinella-labs/proof@v1
         with:
           github-token: ${{ steps.app-token.outputs.token }}
+          # The action defaults to a 400-word ceiling, which is not enough for
+          # dependency PRs: those carry per-crate MSRV evidence and Bazel drift
+          # detail that reviewers need. Raise the ceiling rather than strip
+          # the evidence out of the description.
+          max-words: "900"
