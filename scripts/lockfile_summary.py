@@ -23,6 +23,7 @@ import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+from functools import total_ordering
 from pathlib import Path
 
 try:
@@ -35,6 +36,7 @@ except ModuleNotFoundError:  # pragma: no cover - Python < 3.11
 _VERSION_RE = re.compile(r"^(\d+)(?:\.(\d+))?(?:\.(\d+))?")
 
 
+@total_ordering
 @dataclass(frozen=True)
 class Version:
     """A minimally ordered crate version.
