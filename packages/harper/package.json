@@ -1,5 +1,5 @@
 {
-  "name": "@harpertoken/harper",
+  "name": "@coccinella-labs/harper",
   "version": "0.20.1",
   "description": "Harper CLI binary wrapper",
   "license": "MIT OR Apache-2.0",

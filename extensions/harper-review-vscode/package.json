@@ -3,7 +3,7 @@
   "displayName": "Harper Review",
   "description": "Inline code review diagnostics and quick fixes powered by a local Harper server.",
   "version": "0.1.0",
-  "publisher": "harpertoken",
+  "publisher": "coccinella-labs",
   "license": "MIT OR Apache-2.0",
   "repository": {
     "type": "git",

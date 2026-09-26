@@ -10,7 +10,7 @@ import tarfile
 
 
 PACKAGE_NAME = "harper"
-MAINTAINER = "HarperToken <maintainers@harpertoken.com>"
+MAINTAINER = "coccinella-labs <coccinella.labs@icloud.com>"
 HOMEPAGE = "https://github.com/coccinella-labs/harper"
 DESCRIPTION = "Terminal assistant for code and shell work."
 
