@@ -20,14 +20,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from lockfile_summary import (  # noqa: E402
     PackageChange,
+    Probe,
     Version,
     bazel_lock_versions,
     bazel_mod_deps,
     categorize,
+    classify_cargo_output,
     detect_bazel_drift,
     diff_cargo_locks,
     format_summary,
     parse_cargo_lock,
+    probe_crate_version,
 )
 
 
@@ -250,13 +253,57 @@ class TestBazelDrift(unittest.TestCase):
         self.assertEqual(bazel_lock_versions("not json"), {})
 
 
+class TestProbeClassification(unittest.TestCase):
+    """Fixtures are verbatim cargo output captured against the #904 worktree."""
+
+    def test_msrv_floor(self) -> None:
+        out = (
+            "    Updating zvariant_derive v5.9.2 -> v5.15.0 (requires Rust 1.87)\n"
+            "      Adding zvariant_utils v4.2.0 (requires Rust 1.87)\n"
+            "note: pass `--verbose` to see 29 unchanged dependencies behind latest\n"
+            "warning: not updating lockfile due to dry run\n"
+        )
+        p = classify_cargo_output(out)
+        self.assertEqual(p.kind, "msrv")
+        self.assertEqual(p.detail, "1.87")
+
+    def test_dependent_requirement_blocks_candidate(self) -> None:
+        out = (
+            "    Blocking waiting for file lock on package cache\n"
+            "    Updating crates.io index\n"
+            'error: failed to select a version for the requirement '
+            '`wit-bindgen = "^0.46.0"`\n'
+            "candidate versions found which didn't match: 0.57.1\n"
+            "location searched: crates.io index\n"
+            "required by package `wasip2 v1.0.1+wasi-0.2.4`\n"
+        )
+        p = classify_cargo_output(out)
+        self.assertEqual(p.kind, "constraint")
+        self.assertEqual(p.detail, "wasip2 v1.0.1+wasi-0.2.4")
+
+    def test_accepted_candidate(self) -> None:
+        out = (
+            "    Updating serde v1.0.100 -> v1.0.200\n"
+            "warning: not updating lockfile due to dry run\n"
+        )
+        self.assertEqual(classify_cargo_output(out).kind, "accepted")
+
+    def test_unrecognised_error_is_not_reported_as_accepted(self) -> None:
+        out = "error: no matching package named `does-not-exist` found\n"
+        self.assertEqual(classify_cargo_output(out).kind, "unknown")
+
+    def test_missing_cargo_yields_unknown(self) -> None:
+        p = probe_crate_version("serde", "1.0.200", Path("/nonexistent-dir-xyz"))
+        self.assertEqual(p.kind, "unknown")
+
+
 class TestSummaryText(unittest.TestCase):
     def test_no_editorial_verdicts(self) -> None:
         """The summary states facts; it must not editorialize."""
         rendered = format_summary(
             categorize(diff_cargo_locks({"zbus": {"5.19.0"}}, {"zbus": {"5.13.2"}})),
             [],
-            {("zbus", "5.19.0"): "1.87"},
+            {("zbus", "5.19.0"): Probe("msrv", "1.87")},
             50,
         )
         lowered = rendered.lower()
@@ -267,10 +314,104 @@ class TestSummaryText(unittest.TestCase):
         rendered = format_summary(
             categorize(diff_cargo_locks({"zbus": {"5.19.0"}}, {"zbus": {"5.13.2"}})),
             [],
-            {("zbus", "5.19.0"): "1.87"},
+            {("zbus", "5.19.0"): Probe("msrv", "1.87")},
             50,
         )
         self.assertIn("requires Rust 1.87", rendered)
+
+    def test_reports_dependent_constraint(self) -> None:
+        """A crate blocked by a dependent's requirement is not an MSRV issue."""
+        rendered = format_summary(
+            categorize(
+                diff_cargo_locks(
+                    {"wit-bindgen": {"0.57.1"}}, {"wit-bindgen": {"0.46.0"}}
+                )
+            ),
+            [],
+            {("wit-bindgen", "0.57.1"): Probe("constraint", "wasip2 v1.0.1+wasi-0.2.4")},
+            50,
+        )
+        self.assertIn("blocked by `wasip2 v1.0.1+wasi-0.2.4`", rendered)
+        self.assertNotIn("requires Rust", rendered)
+
+    def test_unexplained_downgrade_is_flagged_not_hidden(self) -> None:
+        """An unexplained downgrade must say so rather than look clean."""
+        rendered = format_summary(
+            categorize(diff_cargo_locks({"zbus": {"5.19.0"}}, {"zbus": {"5.13.2"}})),
+            [],
+            {},
+            50,
+        )
+        self.assertIn("5.19.0 -> 5.13.2", rendered)
+        self.assertNotIn("requires Rust", rendered)
+
+    def test_accepted_candidate_is_reported(self) -> None:
+        rendered = format_summary(
+            categorize(diff_cargo_locks({"zbus": {"5.19.0"}}, {"zbus": {"5.13.2"}})),
+            [],
+            {("zbus", "5.19.0"): Probe("accepted")},
+            50,
+        )
+        self.assertIn("cause not identified", rendered)
+
+    def test_pure_removal_has_no_empty_added_slot(self) -> None:
+        """Regression: removals used to render as `: , removed x`.
+
+        Uses the real #904 shape where `aes` keeps 0.8.4 and loses only 0.9.3.
+        """
+        rendered = format_summary(
+            categorize(
+                diff_cargo_locks({"aes": {"0.8.4", "0.9.3"}}, {"aes": {"0.8.4"}})
+            ),
+            [],
+            {},
+            50,
+        )
+        self.assertIn("- `aes`: removed `0.9.3`, unchanged `0.8.4`", rendered)
+        self.assertNotIn(": , ", rendered)
+        self.assertNotIn(":  ", rendered)
+
+    def test_fully_removed_crate_uses_removed_bucket(self) -> None:
+        rendered = format_summary(
+            categorize(diff_cargo_locks({"zcheapstr": {"1.0.0"}}, {})),
+            [],
+            {},
+            50,
+        )
+        self.assertIn("### Crates removed (1)", rendered)
+        self.assertIn("- `zcheapstr`", rendered)
+
+    def test_added_and_removed_render_without_stray_commas(self) -> None:
+        """Real #904 `winnow` shape: two added, one removed."""
+        rendered = format_summary(
+            categorize(
+                diff_cargo_locks({"winnow": {"1.0.3"}}, {"winnow": {"0.7.15", "1.0.4"}})
+            ),
+            [],
+            {},
+            50,
+        )
+        self.assertIn("- `winnow`: added `0.7.15`, `1.0.4`, removed `1.0.3`", rendered)
+        self.assertNotIn(": , ", rendered)
+        self.assertNotIn(", ,", rendered)
+        self.assertNotIn("unchanged", rendered)
+
+    def test_multi_version_shows_unchanged_line(self) -> None:
+        """`rand` keeps 0.10.x across the change; that must be visible."""
+        rendered = format_summary(
+            categorize(
+                diff_cargo_locks(
+                    {"rand": {"0.8.6", "0.9.4", "0.10.3"}},
+                    {"rand": {"0.8.8", "0.9.5", "0.10.3"}},
+                )
+            ),
+            [],
+            {},
+            50,
+        )
+        self.assertIn("unchanged `0.10.3`", rendered)
+        self.assertIn("added `0.8.8`, `0.9.5`", rendered)
+        self.assertIn("removed `0.8.6`, `0.9.4`", rendered)
 
     def test_empty_diff(self) -> None:
         rendered = format_summary(categorize([]), [], {}, 50)

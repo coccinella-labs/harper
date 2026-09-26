@@ -21,6 +21,7 @@ import json
 import re
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -245,15 +246,54 @@ def detect_bazel_drift(module_text: str, lock_text: str) -> list[tuple[str, str,
     return drift
 
 
-def msrv_for_crate_version(crate: str, version: str, cargo_dir: Path) -> str | None:
-    """Ask cargo which rust-version a candidate version requires.
+@dataclass
+class Probe:
+    """Why cargo did or did not accept a candidate version.
 
-    Runs `cargo update -p <crate> --precise <version> --dry-run` and reports
-    the MSRV cargo names, e.g. "requires Rust 1.87". Returns None when cargo
-    raises no complaint.
+    `msrv` and `constraint` are the two reasons a lockfile update moves a crate
+    backwards. They are different facts and are reported separately: a version
+    can be unselectable purely because a dependent crate pins a tighter range,
+    with no Rust requirement involved at all.
+    """
 
-    This is evidence, not a verdict. A version cargo accepts is not thereby
-    safe, and one it rejects may become usable if the workspace MSRV is raised.
+    kind: str
+    detail: str | None = None
+
+
+def classify_cargo_output(output: str) -> Probe:
+    """Classify combined cargo stdout/stderr from a probe run.
+
+    Split out from `probe_crate_version` so the mapping can be tested against
+    real cargo output without paying for a resolution on every test run.
+    """
+    msrv = re.search(r"requires Rust ([0-9][0-9.]*)", output)
+    if msrv:
+        return Probe("msrv", msrv.group(1))
+
+    # "required by package `wasip2 v1.0.1+wasi-0.2.4`"
+    blocked = re.search(r"required by package `([^`]+)`", output)
+    if blocked and "failed to select a version" in output:
+        return Probe("constraint", blocked.group(1))
+
+    if "error" in output.lower():
+        return Probe("unknown")
+
+    return Probe("accepted")
+
+
+def probe_crate_version(crate: str, version: str, cargo_dir: Path) -> Probe:
+    """Ask cargo why it would not keep `version` of `crate`.
+
+    Runs `cargo update -p <crate> --precise <version> --dry-run`, which does not
+    touch the lockfile, and classifies the response:
+
+    - `msrv`: cargo names a Rust floor, e.g. "requires Rust 1.87".
+    - `constraint`: a dependent crate pins a range that excludes `version`.
+    - `accepted`: cargo had no objection.
+
+    This is evidence, not a verdict. A version cargo accepts is not thereby safe,
+    and one it rejects may become usable if the workspace MSRV is raised or the
+    dependent constraint is relaxed.
     """
     try:
         proc = subprocess.run(
@@ -264,16 +304,17 @@ def msrv_for_crate_version(crate: str, version: str, cargo_dir: Path) -> str | N
             timeout=600,
         )
     except (OSError, subprocess.TimeoutExpired):
-        return None
-    output = proc.stdout + proc.stderr
-    m = re.search(r"requires Rust ([0-9][0-9.]*)", output)
-    return m.group(1) if m else None
+        return Probe("unknown")
+
+    return classify_cargo_output(proc.stdout + proc.stderr)
+
+
 
 
 def format_summary(
     buckets: dict[str, list[PackageChange]],
     drift: list[tuple[str, str, str]],
-    msrv_notes: dict[tuple[str, str], str],
+    probes: dict[tuple[str, str], Probe],
     max_rows: int,
 ) -> str:
     lines: list[str] = ["## Lockfile changes", ""]
@@ -307,26 +348,38 @@ def format_summary(
         [f"- `{c.name}` {o} -> {n}" for c in buckets["upgraded"] for o, n in c.upgrades],
     )
 
+    def describe_probe(p: Probe | None) -> str:
+        if p is None:
+            return ""
+        if p.kind == "msrv":
+            return f" — candidate requires Rust {p.detail}"
+        if p.kind == "constraint":
+            return f" — candidate blocked by `{p.detail}`"
+        if p.kind == "accepted":
+            return " — cargo accepted the candidate; cause not identified"
+        return " — cargo gave no usable reason"
+
     downgrades = []
     for c in buckets["downgraded"]:
         for old, new in c.downgrades:
-            note = msrv_notes.get((c.name, old))
-            suffix = f" — newer version requires Rust {note}" if note else ""
-            downgrades.append(f"- `{c.name}` {old} -> {new}{suffix}")
+            note = describe_probe(probes.get((c.name, old)))
+            downgrades.append(f"- `{c.name}` {old} -> {new}{note}")
     section("Downgraded", downgrades)
+
+    def describe_other(c: PackageChange) -> str:
+        parts = []
+        if c.added:
+            parts.append(f"added {versions(c.added)}")
+        if c.removed:
+            parts.append(f"removed {versions(c.removed)}")
+        unchanged = c.before & c.after
+        if unchanged:
+            parts.append(f"unchanged {versions(unchanged)}")
+        return f"- `{c.name}`: " + ", ".join(parts)
 
     section(
         "Other version changes",
-        [
-            f"- `{c.name}`: "
-            + (
-                f"added {versions(c.added)}"
-                if c.added
-                else ""
-            )
-            + (f", removed {versions(c.removed)}" if c.removed else "")
-            for c in buckets["version_lines"]
-        ],
+        [describe_other(c) for c in buckets["version_lines"]],
     )
 
     if drift:
@@ -360,10 +413,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-rows", type=int, default=40)
     parser.add_argument("--output", help="write summary here instead of stdout")
     parser.add_argument(
-        "--msrv-targets",
-        default="",
-        help="comma-separated crate:version pairs to probe for MSRV, "
-        "e.g. zvariant:5.15.0",
+        "--msrv-workers",
+        type=int,
+        default=6,
+        help="parallel cargo probes for downgraded crates (default: 6)",
+    )
+    parser.add_argument(
+        "--no-probe",
+        action="store_true",
+        help="skip cargo probes; downgrades are listed without evidence",
     )
     args = parser.parse_args(argv)
 
@@ -394,16 +452,29 @@ def main(argv: list[str] | None = None) -> int:
             (root / "MODULE.bazel.lock").read_text(encoding="utf-8"),
         )
 
-    msrv_notes: dict[tuple[str, str], str] = {}
-    for item in filter(None, (s.strip() for s in args.msrv_targets.split(","))):
-        crate, _, version = item.partition(":")
-        if not crate or not version:
-            continue
-        found = msrv_for_crate_version(crate, version, cargo_root)
-        if found:
-            msrv_notes[(crate, version)] = found
+    # Every downgrade is probed, because a crate that moved backwards was
+    # blocked by something: either its own MSRV or a dependent's version
+    # requirement. Probing is bounded because each call re-resolves the graph.
+    probes: dict[tuple[str, str], Probe] = {}
+    if not args.no_probe:
+        targets = [
+            (c.name, old) for c in buckets["downgraded"] for old, _ in c.downgrades
+        ]
+        if targets:
+            workers = max(1, min(args.msrv_workers, len(targets)))
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                futures = {
+                    pool.submit(probe_crate_version, name, ver, cargo_root): (name, ver)
+                    for name, ver in targets
+                }
+                for future in as_completed(futures):
+                    key = futures[future]
+                    try:
+                        probes[key] = future.result()
+                    except Exception:  # pragma: no cover - defensive
+                        probes[key] = Probe("unknown")
 
-    summary = format_summary(buckets, drift, msrv_notes, args.max_rows)
+    summary = format_summary(buckets, drift, probes, args.max_rows)
 
     if args.output:
         Path(args.output).write_text(summary, encoding="utf-8")
