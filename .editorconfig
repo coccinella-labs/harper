@@ -20,3 +20,15 @@ indent_size = 2
 
 [*.md]
 trim_trailing_whitespace = false
+
+[{BUILD,BUILD.bazel,MODULE.bazel,WORKSPACE,*.bzl}]
+indent_style = space
+indent_size = 4
+
+[*.py]
+indent_style = space
+indent_size = 4
+
+[*.sh]
+indent_style = space
+indent_size = 4
