@@ -413,6 +413,26 @@ class TestSummaryText(unittest.TestCase):
         self.assertIn("added `0.8.8`, `0.9.5`", rendered)
         self.assertIn("removed `0.8.6`, `0.9.4`", rendered)
 
+    def test_no_em_dashes_in_rendered_output(self) -> None:
+        """Generated summaries are PR content; keep them dash-free."""
+        rendered = format_summary(
+            categorize(diff_cargo_locks({"zvariant": {"5.15.0"}}, {"zvariant": {"5.9.2"}})),
+            [("rules_rust", "0.74.0", "0.69.0")],
+            {("zvariant", "5.15.0"): Probe("msrv", "1.87")},
+            50,
+        )
+        for dash in ("—", "–"):
+            self.assertNotIn(dash, rendered, f"output must not contain {dash!r}")
+
+    def test_probe_suffixes_use_colons(self) -> None:
+        rendered = format_summary(
+            categorize(diff_cargo_locks({"zvariant": {"5.15.0"}}, {"zvariant": {"5.9.2"}})),
+            [],
+            {("zvariant", "5.15.0"): Probe("msrv", "1.87")},
+            50,
+        )
+        self.assertIn("5.15.0 -> 5.9.2: candidate requires Rust 1.87", rendered)
+
     def test_empty_diff(self) -> None:
         rendered = format_summary(categorize([]), [], {}, 50)
         self.assertIn("No lockfile changes detected", rendered)

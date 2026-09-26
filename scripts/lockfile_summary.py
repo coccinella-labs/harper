@@ -352,12 +352,12 @@ def format_summary(
         if p is None:
             return ""
         if p.kind == "msrv":
-            return f" — candidate requires Rust {p.detail}"
+            return f": candidate requires Rust {p.detail}"
         if p.kind == "constraint":
-            return f" — candidate blocked by `{p.detail}`"
+            return f": candidate blocked by `{p.detail}`"
         if p.kind == "accepted":
-            return " — cargo accepted the candidate; cause not identified"
-        return " — cargo gave no usable reason"
+            return ": cargo accepted the candidate; cause not identified"
+        return ": cargo gave no usable reason"
 
     downgrades = []
     for c in buckets["downgraded"]:
