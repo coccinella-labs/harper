@@ -108,7 +108,6 @@ With the server enabled, these routes are available:
 - `DELETE /api/sessions/{id}`: delete a session.
 - `GET /api/approvals/{session_id}`: list pending tool approvals.
 - `POST /api/approvals/{session_id}`: approve a command.
-- `POST /api/chat/approve/{pending_id}`: approve a pending tool call.
 - `POST /api/review`: review a file. The body takes `file_path`, `content`, optional `language`, `workspace_root`, `instructions`, `selection`, and `max_findings`. Reviews call the configured model, and the response reports the model used.
 
 Authentication routes (`/auth/...`) support Supabase backed login when configured.
