@@ -1,13 +1,15 @@
 #!/bin/bash
 # Fix stale org name in SPDX/copyright headers.
-# Stale:   harpertoken       (e.g. "// Copyright 2026 coccinella-labs")
+# Stale:   harpertoken       (e.g. "// Copyright 2026 harpertoken")
 # Correct: coccinella-labs   (per git remote origin, COMMERCIAL_LICENSE,
 #                             and github.repository_owner checks)
 # Only touches lines containing "Copyright" so repo URLs like
 # github.com/coccinella-labs/harper are left alone.
+# Package and publisher identities (npm scope, VS Code publisher, MSIX) are
+# not header text and are deliberately out of scope here.
 set -euo pipefail
 
-STALE="coccinella-labs"
+STALE="harpertoken"
 CORRECT="coccinella-labs"
 
 cd "$(dirname "$0")/.."
@@ -34,10 +36,11 @@ echo "Found ${count} file(s) with stale Copyright header '${STALE}':"
 updated=0
 while IFS= read -r f; do
   echo "  ${f}"
-  # Replace stale org with correct org ONLY on Copyright lines,
-  # preserving the year (or $YEAR template var in update-copyright.sh).
+  # Replace stale org with correct org ONLY on Copyright lines, preserving
+  # the year. Uses $STALE/$CORRECT so the two halves cannot drift apart
+  # and silently turn this into a no-op.
   # perl -pi is portable across macOS/BSD and GNU/Linux (unlike sed -i).
-  perl -pi -e "s/harpertoken/coccinella-labs/g if /Copyright/" "$f"
+  perl -pi -e "s/${STALE}/${CORRECT}/g if /Copyright/" "$f"
   updated=$((updated + 1))
 done <<< "$matches"
 

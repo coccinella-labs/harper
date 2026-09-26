@@ -6,9 +6,9 @@ import pathlib
 import re
 
 
-PACKAGE_IDENTIFIER = "HarperToken.Harper"
+PACKAGE_IDENTIFIER = "coccinella-labs.Harper"
 PACKAGE_NAME = "Harper"
-PUBLISHER = "HarperToken"
+PUBLISHER = "coccinella-labs"
 HOMEPAGE = "https://github.com/coccinella-labs/harper"
 LICENSE = "MIT OR Apache-2.0"
 DESCRIPTION = "Terminal assistant for code and shell work."
