@@ -18,4 +18,4 @@ Linux `bubblewrap` backend that `harper-sandbox` exercises.
 - Open in VS Code: `Cmd+Shift+P` → "Rebuild and Reopen in Container"
 - Or use GitHub Codespaces
 - Extensions auto-install (rust-analyzer, even-better-toml, vscode-json)
-- Clippy runs on save via `rust-analyzer.checkOnSave.command`
+- Clippy runs on save via `rust-analyzer.check.command`

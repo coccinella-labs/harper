@@ -10,7 +10,6 @@
   "editor.rules": [100],
   "editor.suggestSelection": "first",
   "terminal.integrated.enableMultiLinePasteWarning": "never",
-  "vsintellicode.modifyConfigOnSelectFill": true,
   "workbench.colorCustomizations": {
     "editorError.foreground": "#ff5555",
     "editorWarning.foreground": "#f1fa8c"
