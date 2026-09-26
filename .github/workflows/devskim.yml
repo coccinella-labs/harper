@@ -38,7 +38,7 @@ jobs:
       - name: Run DevSkim scanner
         uses: microsoft/DevSkim-Action@v1
         with:
-          ignore-globs: "**/.git/**,**/bin/**,cargo-bazel-lock.json,MODULE.bazel.lock"
+          ignore-globs: "**/.git/**,cargo-bazel-lock.json,MODULE.bazel.lock"
 
       - name: Upload DevSkim scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v4
