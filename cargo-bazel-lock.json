@@ -1,5 +1,5 @@
 {
-  "checksum": "ea5d205c4417c96c008ca15f5db193ce58849fec214bea01441fbfe3684f52d8",
+  "checksum": "6ed1865fc0e854d82b6e29010b5545ce162c9573cc943e350a7435b6d59fa685",
   "conditions": {
     "aarch64-apple-darwin": [
       "aarch64-apple-darwin"
@@ -8775,7 +8775,7 @@
       ],
       "version": "2.7.1"
     },
-    "harper-core 0.23.0": {
+    "harper-core 0.24.0": {
       "common_attrs": {
         "crate_features": [
           "default"
@@ -9005,9 +9005,9 @@
           }
         }
       ],
-      "version": "0.23.0"
+      "version": "0.24.0"
     },
-    "harper-firmware 0.1.4": {
+    "harper-firmware 0.1.5": {
       "common_attrs": {
         "crate_features": [
           "default"
@@ -9054,9 +9054,9 @@
           }
         }
       ],
-      "version": "0.1.4"
+      "version": "0.1.5"
     },
-    "harper-mcp-server 0.1.7": {
+    "harper-mcp-server 0.1.8": {
       "common_attrs": {
         "deps": [
           {
@@ -9107,9 +9107,9 @@
       "package_url": "https://github.com/coccinella-labs/harper",
       "repository": null,
       "targets": [],
-      "version": "0.1.7"
+      "version": "0.1.8"
     },
-    "harper-sandbox 0.3.3": {
+    "harper-sandbox 0.3.4": {
       "common_attrs": {
         "crate_features": [
           "default"
@@ -9170,9 +9170,9 @@
           }
         }
       ],
-      "version": "0.3.3"
+      "version": "0.3.4"
     },
-    "harper-ui 0.22.3": {
+    "harper-ui 0.22.4": {
       "common_attrs": {
         "deps": [
           {
@@ -9275,9 +9275,9 @@
           }
         }
       ],
-      "version": "0.22.3"
+      "version": "0.22.4"
     },
-    "harper-workspace 0.24.0": {
+    "harper-workspace 0.25.0": {
       "common_attrs": {
         "deps_dev": [
           {
@@ -9356,7 +9356,7 @@
           }
         }
       ],
-      "version": "0.24.0"
+      "version": "0.25.0"
     },
     "hashbrown 0.14.5": {
       "common_attrs": {
@@ -30880,11 +30880,11 @@
     "wait-timeout 0.2.1"
   ],
   "workspace_members": {
-    "harper-core 0.23.0": "lib/harper-core",
-    "harper-firmware 0.1.4": "lib/harper-firmware",
-    "harper-mcp-server 0.1.7": "lib/harper-mcp-server",
-    "harper-sandbox 0.3.3": "lib/harper-sandbox",
-    "harper-ui 0.22.3": "lib/harper-ui",
-    "harper-workspace 0.24.0": ""
+    "harper-core 0.24.0": "lib/harper-core",
+    "harper-firmware 0.1.5": "lib/harper-firmware",
+    "harper-mcp-server 0.1.8": "lib/harper-mcp-server",
+    "harper-sandbox 0.3.4": "lib/harper-sandbox",
+    "harper-ui 0.22.4": "lib/harper-ui",
+    "harper-workspace 0.25.0": ""
   }
 }
