@@ -127,13 +127,14 @@ jobs:
             cat "$SUMMARY_FILE"
           } > summary-comment.md
 
-          # --slurp merges every page into one array so jq can pick the first
-          # match itself. Piping into `head -n 1` instead would close the pipe
-          # early, and under `set -o pipefail` the resulting SIGPIPE fails the
-          # step, which would post a duplicate comment on every run.
+          # `jq -s` merges every page into one array so jq can pick the first
+          # match itself. (`gh api --slurp` cannot combine with `--jq` on the
+          # installed CLI.) Piping into `head -n 1` instead would close the
+          # pipe early, and under `set -o pipefail` the resulting SIGPIPE
+          # fails the step, which would post a duplicate comment on every run.
           existing=$(gh api "repos/${{ github.repository }}/issues/$PR_NUMBER/comments" \
-            --paginate --slurp \
-            --jq 'add | map(select(.body | startswith(env.MARKER))) | first | .id // empty')
+            --paginate \
+            | jq -s 'add | map(select(.body | startswith(env.MARKER))) | first | .id // empty')
 
           if [ -n "$existing" ]; then
             gh api --method PATCH \
