@@ -7,15 +7,11 @@ on:
   schedule:
     - cron: "0 0 * * 0" # Weekly on Sunday
   workflow_dispatch:
-  push:
-    branches:
-      - cargo-lock-update
 
-# A push to the lockfile branch re-runs this workflow so the generated summary
-# cannot lag behind the lockfile it describes. The trigger does not loop: a run
-# that finds no lockfile diff gives create-pull-request nothing to commit, so it
-# pushes nothing and queues no further run. `concurrency` additionally collapses
-# overlapping runs.
+# Scheduled and manually dispatched runs only. Do not reintroduce a push trigger
+# on cargo-lock-update: create-pull-request bases the PR on the checked-out
+# branch by default, so such runs resolve base and head to the same branch and
+# abort. Omitting the self-trigger also avoids racing the fixed bot branch.
 concurrency:
   group: lockfiles-${{ github.ref }}
   cancel-in-progress: true
@@ -77,9 +73,11 @@ jobs:
           set -euo pipefail
           git fetch --no-tags origin "${{ github.event.repository.default_branch }}"
           BASE="origin/${{ github.event.repository.default_branch }}"
+          # Keep generated commentary outside the repository checkout so the PR
+          # step cannot commit it.
           python3 scripts/lockfile_summary.py \
             --base-ref "$BASE" \
-            --output summary.md
+            --output "$RUNNER_TEMP/lockfile-summary.md"
           {
             echo "title<<TITLEEOF"
             echo "[chore] update rust lockfiles"
@@ -102,7 +100,12 @@ jobs:
           title: ${{ steps.summary.outputs.title }}
           body: ${{ steps.summary.outputs.body }}
           branch: cargo-lock-update
+          base: ${{ github.event.repository.default_branch }}
           delete-branch: true
+          add-paths: |
+            Cargo.lock
+            cargo-bazel-lock.json
+            MODULE.bazel.lock
 
       # The generated facts live in a pinned comment rather than the PR body.
       # create-pull-request rewrites title and body on every run
@@ -114,7 +117,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           PR_NUMBER: ${{ steps.create-pr.outputs.pull-request-number }}
-          SUMMARY_FILE: ${{ github.workspace }}/summary.md
+          SUMMARY_FILE: ${{ runner.temp }}/lockfile-summary.md
           MARKER: "<!-- lockfile-summary -->"
         run: |
           set -euo pipefail
@@ -124,13 +127,14 @@ jobs:
             cat "$SUMMARY_FILE"
           } > summary-comment.md
 
-          # --slurp merges every page into one array so jq can pick the first
-          # match itself. Piping into `head -n 1` instead would close the pipe
-          # early, and under `set -o pipefail` the resulting SIGPIPE fails the
-          # step, which would post a duplicate comment on every run.
+          # `jq -s` merges every page into one array so jq can pick the first
+          # match itself. (`gh api --slurp` cannot combine with `--jq` on the
+          # installed CLI.) Piping into `head -n 1` instead would close the
+          # pipe early, and under `set -o pipefail` the resulting SIGPIPE
+          # fails the step, which would post a duplicate comment on every run.
           existing=$(gh api "repos/${{ github.repository }}/issues/$PR_NUMBER/comments" \
-            --paginate --slurp \
-            --jq 'add | map(select(.body | startswith(env.MARKER))) | first | .id // empty')
+            --paginate \
+            | jq -s 'add | map(select(.body | startswith(env.MARKER))) | first | .id // empty')
 
           if [ -n "$existing" ]; then
             gh api --method PATCH \
