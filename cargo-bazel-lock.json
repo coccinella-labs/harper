@@ -1,5 +1,5 @@
 {
-  "checksum": "6ed1865fc0e854d82b6e29010b5545ce162c9573cc943e350a7435b6d59fa685",
+  "checksum": "a8221c63c5867651a67bf3345a42df8665e0a733f870e943e9d4553e6e15eac7",
   "conditions": {
     "aarch64-apple-darwin": [
       "aarch64-apple-darwin"
@@ -558,7 +558,7 @@
       "common_attrs": {
         "deps": [
           {
-            "id": "libc 0.2.189",
+            "id": "libc 0.2.190",
             "target": "libc"
           }
         ],
@@ -1107,7 +1107,7 @@
           "selects": {
             "cfg(any())": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ]
@@ -1520,7 +1520,7 @@
       ],
       "version": "2.5.0"
     },
-    "async-recursion 1.1.1": {
+    "async-recursion 1.2.0": {
       "common_attrs": {
         "deps": [
           {
@@ -1532,7 +1532,7 @@
             "target": "quote"
           },
           {
-            "id": "syn 2.0.119",
+            "id": "syn 3.0.6",
             "target": "syn"
           }
         ],
@@ -1549,8 +1549,8 @@
       "package_url": "https://github.com/dcchut/async-recursion",
       "repository": {
         "Http": {
-          "sha256": "3b43422f69d8ff38f95f1b2bb76517c91589a924d1559a0e935d7c8ce0274c11",
-          "url": "https://static.crates.io/crates/async-recursion/1.1.1/download"
+          "sha256": "4f8abc12baad266b1c8cec146854c195b5864b4221d4b2ca7296a7ae82d9e451",
+          "url": "https://static.crates.io/crates/async-recursion/1.2.0/download"
         }
       },
       "targets": [
@@ -1561,7 +1561,7 @@
           }
         }
       ],
-      "version": "1.1.1"
+      "version": "1.2.0"
     },
     "async-signal 0.2.14": {
       "common_attrs": {
@@ -2076,7 +2076,7 @@
         "deps": {
           "common": [
             {
-              "id": "cc 1.5.1",
+              "id": "cc 1.6.0",
               "target": "cc"
             },
             {
@@ -2239,7 +2239,7 @@
             "target": "sync_wrapper"
           },
           {
-            "id": "tokio 1.53.1",
+            "id": "tokio 1.53.2",
             "target": "tokio"
           },
           {
@@ -3192,7 +3192,7 @@
       "common_attrs": {
         "deps": [
           {
-            "id": "libc 0.2.189",
+            "id": "libc 0.2.190",
             "target": "libc"
           }
         ],
@@ -3341,7 +3341,7 @@
       ],
       "version": "0.1.2"
     },
-    "cc 1.5.1": {
+    "cc 1.6.0": {
       "common_attrs": {
         "crate_features": [
           "parallel"
@@ -3364,25 +3364,25 @@
           "selects": {
             "aarch64-apple-darwin": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
             "aarch64-unknown-linux-gnu": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
             "x86_64-unknown-linux-gnu": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
             "x86_64-unknown-nixos-gnu": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ]
@@ -3401,8 +3401,8 @@
       "package_url": "https://github.com/rust-lang/cc-rs",
       "repository": {
         "Http": {
-          "sha256": "f360145194ee8e21db5ee7f3fcd4fe52210864c75c985dae33218202c8bbe040",
-          "url": "https://static.crates.io/crates/cc/1.5.1/download"
+          "sha256": "f74872d07caf508b30a21f6836e7d7016a2eaf7d9ff4f48deaa58cd8a0407630",
+          "url": "https://static.crates.io/crates/cc/1.6.0/download"
         }
       },
       "targets": [
@@ -3413,7 +3413,7 @@
           }
         }
       ],
-      "version": "1.5.1"
+      "version": "1.6.0"
     },
     "cfg-if 1.0.5": {
       "common_attrs": {
@@ -3947,7 +3947,7 @@
       "common_attrs": {
         "deps": [
           {
-            "id": "cc 1.5.1",
+            "id": "cc 1.6.0",
             "target": "cc"
           }
         ],
@@ -3998,7 +3998,7 @@
             "target": "thiserror"
           },
           {
-            "id": "tokio 1.53.1",
+            "id": "tokio 1.53.2",
             "target": "tokio"
           }
         ],
@@ -4456,7 +4456,7 @@
             "target": "core_foundation_sys"
           },
           {
-            "id": "libc 0.2.189",
+            "id": "libc 0.2.190",
             "target": "libc"
           }
         ],
@@ -4499,7 +4499,7 @@
             "target": "core_foundation_sys"
           },
           {
-            "id": "libc 0.2.189",
+            "id": "libc 0.2.190",
             "target": "libc"
           }
         ],
@@ -4570,25 +4570,25 @@
           "selects": {
             "aarch64-linux-android": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
             "cfg(all(target_arch = \"aarch64\", target_os = \"linux\"))": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
             "cfg(all(target_arch = \"aarch64\", target_vendor = \"apple\"))": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
             "cfg(all(target_arch = \"loongarch64\", target_os = \"linux\"))": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ]
@@ -4628,25 +4628,25 @@
           "selects": {
             "cfg(all(target_arch = \"aarch64\", target_os = \"android\"))": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
             "cfg(all(target_arch = \"aarch64\", target_os = \"linux\"))": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
             "cfg(all(target_arch = \"aarch64\", target_vendor = \"apple\"))": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
             "cfg(all(target_arch = \"loongarch64\", target_os = \"linux\"))": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ]
@@ -5079,7 +5079,7 @@
           "selects": {
             "aarch64-apple-darwin": [
               {
-                "id": "mio 1.2.3",
+                "id": "mio 1.2.4",
                 "target": "mio"
               },
               {
@@ -5093,7 +5093,7 @@
             ],
             "aarch64-unknown-linux-gnu": [
               {
-                "id": "mio 1.2.3",
+                "id": "mio 1.2.4",
                 "target": "mio"
               },
               {
@@ -5123,7 +5123,7 @@
             ],
             "x86_64-unknown-linux-gnu": [
               {
-                "id": "mio 1.2.3",
+                "id": "mio 1.2.4",
                 "target": "mio"
               },
               {
@@ -5137,7 +5137,7 @@
             ],
             "x86_64-unknown-nixos-gnu": [
               {
-                "id": "mio 1.2.3",
+                "id": "mio 1.2.4",
                 "target": "mio"
               },
               {
@@ -5900,7 +5900,7 @@
             ],
             "cfg(unix)": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
@@ -6603,19 +6603,19 @@
           "selects": {
             "cfg(target_os = \"hermit\")": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
             "cfg(target_os = \"wasi\")": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
             "cfg(unix)": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
@@ -7127,7 +7127,7 @@
         "deps": {
           "common": [
             {
-              "id": "libc 0.2.189",
+              "id": "libc 0.2.190",
               "target": "libc"
             },
             {
@@ -7182,7 +7182,7 @@
           "selects": {
             "cfg(unix)": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ]
@@ -8277,7 +8277,7 @@
             ],
             "cfg(unix)": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ]
@@ -8334,7 +8334,7 @@
           "selects": {
             "cfg(all(any(target_os = \"linux\", target_os = \"android\"), not(any(all(target_os = \"linux\", target_env = \"\"), getrandom_backend = \"custom\", getrandom_backend = \"linux_raw\", getrandom_backend = \"rdrand\", getrandom_backend = \"rndr\"))))": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
@@ -8352,43 +8352,43 @@
             ],
             "cfg(any(target_os = \"dragonfly\", target_os = \"freebsd\", target_os = \"hurd\", target_os = \"illumos\", target_os = \"cygwin\", all(target_os = \"horizon\", target_arch = \"arm\")))": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
             "cfg(any(target_os = \"haiku\", target_os = \"redox\", target_os = \"nto\", target_os = \"aix\"))": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
             "cfg(any(target_os = \"ios\", target_os = \"visionos\", target_os = \"watchos\", target_os = \"tvos\"))": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
             "cfg(any(target_os = \"macos\", target_os = \"openbsd\", target_os = \"vita\", target_os = \"emscripten\"))": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
             "cfg(target_os = \"netbsd\")": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
             "cfg(target_os = \"solaris\")": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
             "cfg(target_os = \"vxworks\")": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
@@ -8457,7 +8457,7 @@
           "selects": {
             "cfg(all(any(target_os = \"linux\", target_os = \"android\"), not(any(all(target_os = \"linux\", target_env = \"\"), getrandom_backend = \"custom\", getrandom_backend = \"linux_raw\", getrandom_backend = \"rdrand\", getrandom_backend = \"rndr\"))))": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
@@ -8469,43 +8469,43 @@
             ],
             "cfg(any(target_os = \"dragonfly\", target_os = \"freebsd\", target_os = \"hurd\", target_os = \"illumos\", target_os = \"cygwin\", all(target_os = \"horizon\", target_arch = \"arm\")))": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
             "cfg(any(target_os = \"haiku\", target_os = \"redox\", target_os = \"nto\", target_os = \"aix\"))": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
             "cfg(any(target_os = \"ios\", target_os = \"visionos\", target_os = \"watchos\", target_os = \"tvos\"))": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
             "cfg(any(target_os = \"macos\", target_os = \"openbsd\", target_os = \"vita\", target_os = \"emscripten\"))": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
             "cfg(target_os = \"netbsd\")": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
             "cfg(target_os = \"solaris\")": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
             "cfg(target_os = \"vxworks\")": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ]
@@ -8683,7 +8683,7 @@
             "target": "slab"
           },
           {
-            "id": "tokio 1.53.1",
+            "id": "tokio 1.53.2",
             "target": "tokio"
           },
           {
@@ -8938,7 +8938,7 @@
             "target": "thiserror"
           },
           {
-            "id": "tokio 1.53.1",
+            "id": "tokio 1.53.2",
             "target": "tokio"
           },
           {
@@ -9072,7 +9072,7 @@
             "target": "dashmap"
           },
           {
-            "id": "lazy_static 1.5.0",
+            "id": "lazy_static 1.5.1",
             "target": "lazy_static"
           },
           {
@@ -9084,7 +9084,7 @@
             "target": "serde_json"
           },
           {
-            "id": "tokio 1.53.1",
+            "id": "tokio 1.53.2",
             "target": "tokio"
           },
           {
@@ -9133,7 +9133,7 @@
               "target": "thiserror"
             },
             {
-              "id": "tokio 1.53.1",
+              "id": "tokio 1.53.2",
               "target": "tokio"
             }
           ],
@@ -9228,7 +9228,7 @@
             "target": "syntect"
           },
           {
-            "id": "tokio 1.53.1",
+            "id": "tokio 1.53.2",
             "target": "tokio"
           },
           {
@@ -9289,7 +9289,7 @@
             "target": "criterion"
           },
           {
-            "id": "lazy_static 1.5.0",
+            "id": "lazy_static 1.5.1",
             "target": "lazy_static"
           },
           {
@@ -9329,7 +9329,7 @@
             "target": "tempfile"
           },
           {
-            "id": "tokio 1.53.1",
+            "id": "tokio 1.53.2",
             "target": "tokio"
           },
           {
@@ -10088,7 +10088,7 @@
             "target": "smallvec"
           },
           {
-            "id": "tokio 1.53.1",
+            "id": "tokio 1.53.2",
             "target": "tokio"
           },
           {
@@ -10150,11 +10150,11 @@
             "target": "rustls"
           },
           {
-            "id": "tokio 1.53.1",
+            "id": "tokio 1.53.2",
             "target": "tokio"
           },
           {
-            "id": "tokio-rustls 0.26.5",
+            "id": "tokio-rustls 0.26.6",
             "target": "tokio_rustls"
           },
           {
@@ -10218,7 +10218,7 @@
             "target": "native_tls"
           },
           {
-            "id": "tokio 1.53.1",
+            "id": "tokio 1.53.2",
             "target": "tokio"
           },
           {
@@ -10334,7 +10334,7 @@
               "target": "pin_project_lite"
             },
             {
-              "id": "tokio 1.53.1",
+              "id": "tokio 1.53.2",
               "target": "tokio"
             },
             {
@@ -10365,7 +10365,7 @@
                 "target": "ipnet"
               },
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               },
               {
@@ -10407,7 +10407,7 @@
                 "target": "ipnet"
               },
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               },
               {
@@ -10445,7 +10445,7 @@
                 "target": "ipnet"
               },
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               },
               {
@@ -10483,7 +10483,7 @@
                 "target": "ipnet"
               },
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               },
               {
@@ -10525,7 +10525,7 @@
                 "target": "ipnet"
               },
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               },
               {
@@ -10563,7 +10563,7 @@
                 "target": "ipnet"
               },
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               },
               {
@@ -10686,7 +10686,7 @@
       "build_script_attrs": {
         "deps": [
           {
-            "id": "cc 1.5.1",
+            "id": "cc 1.6.0",
             "target": "cc"
           }
         ]
@@ -11718,7 +11718,7 @@
           "selects": {
             "cfg(any(unix, target_os = \"wasi\"))": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
@@ -11878,7 +11878,7 @@
           "selects": {
             "cfg(unix)": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
@@ -12513,7 +12513,7 @@
       ],
       "version": "0.11.0"
     },
-    "lazy_static 1.5.0": {
+    "lazy_static 1.5.1": {
       "common_attrs": {
         "edition": "2015"
       },
@@ -12528,8 +12528,8 @@
       "package_url": "https://github.com/rust-lang-nursery/lazy-static.rs",
       "repository": {
         "Http": {
-          "sha256": "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe",
-          "url": "https://static.crates.io/crates/lazy_static/1.5.0/download"
+          "sha256": "20870f649af7073d53e38067b2a84312175d56ea15217e1b15bc83506ec50afb",
+          "url": "https://static.crates.io/crates/lazy_static/1.5.1/download"
         }
       },
       "targets": [
@@ -12540,7 +12540,7 @@
           }
         }
       ],
-      "version": "1.5.0"
+      "version": "1.5.1"
     },
     "lebe 0.5.3": {
       "common_attrs": {
@@ -12570,7 +12570,7 @@
       ],
       "version": "0.5.3"
     },
-    "libc 0.2.189": {
+    "libc 0.2.190": {
       "build_script_attrs": {},
       "common_attrs": {
         "crate_features": {
@@ -12609,8 +12609,8 @@
       "package_url": "https://github.com/rust-lang/libc",
       "repository": {
         "Http": {
-          "sha256": "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2",
-          "url": "https://static.crates.io/crates/libc/0.2.189/download"
+          "sha256": "ce5d3ddc6d3fa000eb1536d85e147bfe31aacaba692ed6a876f95cb7c855be78",
+          "url": "https://static.crates.io/crates/libc/0.2.190/download"
         }
       },
       "targets": [
@@ -12627,13 +12627,13 @@
           }
         }
       ],
-      "version": "0.2.189"
+      "version": "0.2.190"
     },
     "libfuzzer-sys 0.4.13": {
       "build_script_attrs": {
         "deps": [
           {
-            "id": "cc 1.5.1",
+            "id": "cc 1.6.0",
             "target": "cc"
           }
         ]
@@ -12752,7 +12752,7 @@
       "build_script_attrs": {
         "deps": [
           {
-            "id": "cc 1.5.1",
+            "id": "cc 1.6.0",
             "target": "cc"
           },
           {
@@ -13145,21 +13145,21 @@
       ],
       "version": "0.1.3"
     },
-    "mac_address 1.1.8": {
+    "mac_address 1.2.0": {
       "common_attrs": {
         "deps": {
           "common": [],
           "selects": {
             "cfg(any(target_os = \"linux\", target_os = \"macos\", target_os = \"freebsd\", target_os = \"netbsd\", target_os = \"openbsd\", target_os = \"android\", target_os = \"illumos\"))": [
               {
-                "id": "nix 0.29.0",
+                "id": "nix 0.30.1",
                 "target": "nix"
               }
             ],
             "cfg(windows)": [
               {
-                "id": "winapi 0.3.9",
-                "target": "winapi"
+                "id": "windows-sys 0.61.2",
+                "target": "windows_sys"
               }
             ]
           }
@@ -13174,11 +13174,11 @@
         "MIT"
       ],
       "name": "mac_address",
-      "package_url": "https://github.com/rep-nop/mac_address",
+      "package_url": "https://github.com/repnop/mac_address",
       "repository": {
         "Http": {
-          "sha256": "c0aeb26bf5e836cc1c341c8106051b573f1766dfa05aa87f0b98be5e51b02303",
-          "url": "https://static.crates.io/crates/mac_address/1.1.8/download"
+          "sha256": "b367b50a9be9a5d3b5718c1da74e5d6b9c17647f89752ee2562a470cc3c4eb1a",
+          "url": "https://static.crates.io/crates/mac_address/1.2.0/download"
         }
       },
       "targets": [
@@ -13189,7 +13189,7 @@
           }
         }
       ],
-      "version": "1.1.8"
+      "version": "1.2.0"
     },
     "matchit 0.8.4": {
       "common_attrs": {
@@ -13554,7 +13554,7 @@
       ],
       "version": "0.9.1"
     },
-    "mio 1.2.3": {
+    "mio 1.2.4": {
       "common_attrs": {
         "crate_features": {
           "common": [
@@ -13598,7 +13598,7 @@
             ],
             "cfg(any(unix, target_os = \"hermit\", target_os = \"wasi\"))": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
@@ -13640,8 +13640,8 @@
       "package_url": "https://github.com/tokio-rs/mio",
       "repository": {
         "Http": {
-          "sha256": "4b18443e9c262bfe8fa82f51666e2642c53393f7e5c27b3e1aeab922cff5b9d8",
-          "url": "https://static.crates.io/crates/mio/1.2.3/download"
+          "sha256": "1788edb87fdc09c7e26304471e2f5be8cdefb1b6930d6e3985fc02ff53bf86ee",
+          "url": "https://static.crates.io/crates/mio/1.2.4/download"
         }
       },
       "targets": [
@@ -13652,7 +13652,7 @@
           }
         }
       ],
-      "version": "1.2.3"
+      "version": "1.2.4"
     },
     "moxcms 0.7.11": {
       "common_attrs": {
@@ -13752,7 +13752,7 @@
             ],
             "cfg(target_vendor = \"apple\")": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               },
               {
@@ -13884,7 +13884,7 @@
             "target": "cfg_if"
           },
           {
-            "id": "libc 0.2.189",
+            "id": "libc 0.2.190",
             "target": "libc"
           }
         ],
@@ -13923,6 +13923,65 @@
       ],
       "version": "0.29.0"
     },
+    "nix 0.30.1": {
+      "build_script_attrs": {
+        "deps": [
+          {
+            "id": "cfg_aliases 0.2.2",
+            "target": "cfg_aliases"
+          }
+        ]
+      },
+      "common_attrs": {
+        "deps": [
+          {
+            "id": "bitflags 2.13.2",
+            "target": "bitflags"
+          },
+          {
+            "id": "cfg-if 1.0.5",
+            "target": "cfg_if"
+          },
+          {
+            "id": "libc 0.2.190",
+            "target": "libc"
+          }
+        ],
+        "edition": "2021",
+        "extra_deps": [
+          ":build_script_build"
+        ]
+      },
+      "library_target_name": "nix",
+      "license": "MIT",
+      "license_file": "LICENSE",
+      "license_ids": [
+        "MIT"
+      ],
+      "name": "nix",
+      "package_url": "https://github.com/nix-rust/nix",
+      "repository": {
+        "Http": {
+          "sha256": "74523f3a35e05aba87a1d978330aef40f67b0304ac79c1c00b294c9830543db6",
+          "url": "https://static.crates.io/crates/nix/0.30.1/download"
+        }
+      },
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "nix",
+            "crate_root": "src/lib.rs"
+          }
+        },
+        {
+          "BuildScript": {
+            "crate_name": "build_script_build",
+            "crate_root": "build.rs"
+          }
+        }
+      ],
+      "version": "0.30.1"
+    },
     "nix 0.31.3": {
       "build_script_attrs": {
         "deps": [
@@ -13951,7 +14010,7 @@
             "target": "cfg_if"
           },
           {
-            "id": "libc 0.2.189",
+            "id": "libc 0.2.190",
             "target": "libc"
           }
         ],
@@ -14612,7 +14671,7 @@
           "selects": {
             "cfg(not(windows))": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
@@ -14658,7 +14717,7 @@
           "selects": {
             "cfg(any(target_os = \"macos\", target_os = \"ios\", target_os = \"freebsd\"))": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ]
@@ -15093,7 +15152,7 @@
           "selects": {
             "cfg(windows)": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ]
@@ -15129,7 +15188,7 @@
       "build_script_attrs": {
         "deps": [
           {
-            "id": "cc 1.5.1",
+            "id": "cc 1.6.0",
             "target": "cc"
           },
           {
@@ -15231,7 +15290,7 @@
             "target": "foreign_types"
           },
           {
-            "id": "libc 0.2.189",
+            "id": "libc 0.2.190",
             "target": "libc"
           },
           {
@@ -15356,7 +15415,7 @@
       "build_script_attrs": {
         "deps": [
           {
-            "id": "cc 1.5.1",
+            "id": "cc 1.6.0",
             "target": "cc"
           },
           {
@@ -15373,7 +15432,7 @@
       "common_attrs": {
         "deps": [
           {
-            "id": "libc 0.2.189",
+            "id": "libc 0.2.190",
             "target": "libc"
           }
         ],
@@ -15794,7 +15853,7 @@
             ],
             "cfg(unix)": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
@@ -17512,12 +17571,12 @@
             },
             {
               "alias": "proto",
-              "id": "quinn-proto 0.11.18",
+              "id": "quinn-proto 0.11.19",
               "target": "quinn_proto"
             },
             {
               "alias": "udp",
-              "id": "quinn-udp 0.5.15",
+              "id": "quinn-udp 0.5.16",
               "target": "quinn_udp"
             },
             {
@@ -17529,7 +17588,7 @@
               "target": "thiserror"
             },
             {
-              "id": "tokio 1.53.1",
+              "id": "tokio 1.53.2",
               "target": "tokio"
             },
             {
@@ -17588,7 +17647,7 @@
       ],
       "version": "0.11.12"
     },
-    "quinn-proto 0.11.18": {
+    "quinn-proto 0.11.19": {
       "common_attrs": {
         "deps": {
           "common": [
@@ -17663,8 +17722,8 @@
       "package_url": "https://github.com/quinn-rs/quinn",
       "repository": {
         "Http": {
-          "sha256": "a9746dbde176634f4f2f1faf2404e30a31b2bc1e9cafb5329c95d8177a18c9fc",
-          "url": "https://static.crates.io/crates/quinn-proto/0.11.18/download"
+          "sha256": "0e750cca55fe4f0439a15d0bb529da9651e79993e8e72c61a899a36d462befbe",
+          "url": "https://static.crates.io/crates/quinn-proto/0.11.19/download"
         }
       },
       "targets": [
@@ -17675,9 +17734,9 @@
           }
         }
       ],
-      "version": "0.11.18"
+      "version": "0.11.19"
     },
-    "quinn-udp 0.5.15": {
+    "quinn-udp 0.5.16": {
       "build_script_attrs": {
         "deps": [
           {
@@ -17690,7 +17749,7 @@
         "deps": {
           "common": [
             {
-              "id": "libc 0.2.189",
+              "id": "libc 0.2.190",
               "target": "libc"
             }
           ],
@@ -17729,8 +17788,8 @@
       "package_url": "https://github.com/quinn-rs/quinn",
       "repository": {
         "Http": {
-          "sha256": "35a133f956daabe89a61a685c2649f13d82d5aa4bd5d12d1277e1072a21c0694",
-          "url": "https://static.crates.io/crates/quinn-udp/0.5.15/download"
+          "sha256": "af66907df18639dcf4db56ca65490cabc4b27a97dbadd96f2926cca73298f016",
+          "url": "https://static.crates.io/crates/quinn-udp/0.5.16/download"
         }
       },
       "targets": [
@@ -17747,7 +17806,7 @@
           }
         }
       ],
-      "version": "0.5.15"
+      "version": "0.5.16"
     },
     "quote 1.0.47": {
       "build_script_attrs": {},
@@ -18650,7 +18709,7 @@
               "target": "itertools"
             },
             {
-              "id": "libc 0.2.189",
+              "id": "libc 0.2.190",
               "target": "libc"
             },
             {
@@ -19496,7 +19555,7 @@
                 "target": "tokio_native_tls"
               },
               {
-                "id": "tokio-rustls 0.26.5",
+                "id": "tokio-rustls 0.26.6",
                 "target": "tokio_rustls"
               },
               {
@@ -19543,7 +19602,7 @@
                 "target": "tokio_native_tls"
               },
               {
-                "id": "tokio-rustls 0.26.5",
+                "id": "tokio-rustls 0.26.6",
                 "target": "tokio_rustls"
               },
               {
@@ -19581,7 +19640,7 @@
                 "target": "pin_project_lite"
               },
               {
-                "id": "tokio 1.53.1",
+                "id": "tokio 1.53.2",
                 "target": "tokio"
               },
               {
@@ -19654,7 +19713,7 @@
                 "target": "tokio_native_tls"
               },
               {
-                "id": "tokio-rustls 0.26.5",
+                "id": "tokio-rustls 0.26.6",
                 "target": "tokio_rustls"
               },
               {
@@ -19701,7 +19760,7 @@
                 "target": "tokio_native_tls"
               },
               {
-                "id": "tokio-rustls 0.26.5",
+                "id": "tokio-rustls 0.26.6",
                 "target": "tokio_rustls"
               },
               {
@@ -19748,7 +19807,7 @@
                 "target": "tokio_native_tls"
               },
               {
-                "id": "tokio-rustls 0.26.5",
+                "id": "tokio-rustls 0.26.6",
                 "target": "tokio_rustls"
               },
               {
@@ -19900,7 +19959,7 @@
                 "target": "pin_project_lite"
               },
               {
-                "id": "tokio 1.53.1",
+                "id": "tokio 1.53.2",
                 "target": "tokio"
               },
               {
@@ -20023,7 +20082,7 @@
       "build_script_attrs": {
         "deps": [
           {
-            "id": "cc 1.5.1",
+            "id": "cc 1.6.0",
             "target": "cc"
           }
         ],
@@ -20059,13 +20118,13 @@
             ],
             "cfg(all(all(target_arch = \"aarch64\", target_endian = \"little\"), target_vendor = \"apple\", any(target_os = \"ios\", target_os = \"macos\", target_os = \"tvos\", target_os = \"visionos\", target_os = \"watchos\")))": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
             "cfg(all(any(all(target_arch = \"aarch64\", target_endian = \"little\"), all(target_arch = \"arm\", target_endian = \"little\")), any(target_os = \"android\", target_os = \"linux\")))": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ]
@@ -20481,7 +20540,7 @@
                 "target": "errno"
               },
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
@@ -20504,7 +20563,7 @@
                 "target": "errno"
               },
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
@@ -20526,7 +20585,7 @@
                 "target": "errno"
               },
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ]
@@ -20799,7 +20858,7 @@
               "target": "home"
             },
             {
-              "id": "libc 0.2.189",
+              "id": "libc 0.2.190",
               "target": "libc"
             },
             {
@@ -21104,7 +21163,7 @@
             "target": "core_foundation_sys"
           },
           {
-            "id": "libc 0.2.189",
+            "id": "libc 0.2.190",
             "target": "libc"
           },
           {
@@ -21151,7 +21210,7 @@
             "target": "core_foundation_sys"
           },
           {
-            "id": "libc 0.2.189",
+            "id": "libc 0.2.190",
             "target": "libc"
           }
         ],
@@ -21775,7 +21834,7 @@
         ],
         "deps": [
           {
-            "id": "libc 0.2.189",
+            "id": "libc 0.2.190",
             "target": "libc"
           },
           {
@@ -21827,12 +21886,12 @@
         ],
         "deps": [
           {
-            "id": "libc 0.2.189",
+            "id": "libc 0.2.190",
             "target": "libc"
           },
           {
             "alias": "mio_1_0",
-            "id": "mio 1.2.3",
+            "id": "mio 1.2.4",
             "target": "mio"
           },
           {
@@ -21875,7 +21934,7 @@
             "target": "errno"
           },
           {
-            "id": "libc 0.2.189",
+            "id": "libc 0.2.190",
             "target": "libc"
           }
         ],
@@ -22179,7 +22238,7 @@
           "selects": {
             "cfg(any(unix, target_os = \"wasi\"))": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
@@ -22222,7 +22281,7 @@
       "build_script_attrs": {
         "deps": [
           {
-            "id": "cc 1.5.1",
+            "id": "cc 1.6.0",
             "target": "cc"
           }
         ],
@@ -22919,7 +22978,7 @@
             "target": "core_foundation_sys"
           },
           {
-            "id": "libc 0.2.189",
+            "id": "libc 0.2.190",
             "target": "libc"
           }
         ],
@@ -22987,7 +23046,7 @@
             ],
             "cfg(unix)": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
@@ -23249,7 +23308,7 @@
       "common_attrs": {
         "deps": [
           {
-            "id": "libc 0.2.189",
+            "id": "libc 0.2.190",
             "target": "libc"
           }
         ],
@@ -23344,11 +23403,11 @@
               "target": "hex"
             },
             {
-              "id": "lazy_static 1.5.0",
+              "id": "lazy_static 1.5.1",
               "target": "lazy_static"
             },
             {
-              "id": "libc 0.2.189",
+              "id": "libc 0.2.190",
               "target": "libc"
             },
             {
@@ -23758,7 +23817,7 @@
           "selects": {
             "aarch64-apple-darwin": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               },
               {
@@ -23768,7 +23827,7 @@
             ],
             "aarch64-unknown-linux-gnu": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               },
               {
@@ -23778,7 +23837,7 @@
             ],
             "x86_64-unknown-linux-gnu": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               },
               {
@@ -23788,7 +23847,7 @@
             ],
             "x86_64-unknown-nixos-gnu": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               },
               {
@@ -24063,7 +24122,7 @@
       ],
       "version": "1.13.3"
     },
-    "tokio 1.53.1": {
+    "tokio 1.53.2": {
       "common_attrs": {
         "crate_features": {
           "common": [
@@ -24101,7 +24160,7 @@
               "target": "bytes"
             },
             {
-              "id": "mio 1.2.3",
+              "id": "mio 1.2.4",
               "target": "mio"
             },
             {
@@ -24116,7 +24175,7 @@
           "selects": {
             "aarch64-apple-darwin": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               },
               {
@@ -24130,7 +24189,7 @@
             ],
             "aarch64-unknown-linux-gnu": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               },
               {
@@ -24144,7 +24203,7 @@
             ],
             "wasm32-wasip1": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
@@ -24160,7 +24219,7 @@
             ],
             "x86_64-unknown-linux-gnu": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               },
               {
@@ -24174,7 +24233,7 @@
             ],
             "x86_64-unknown-nixos-gnu": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               },
               {
@@ -24206,8 +24265,8 @@
       "package_url": "https://github.com/tokio-rs/tokio",
       "repository": {
         "Http": {
-          "sha256": "202caea871b69668250d242070849eb495be178ed697a3e98aebce5bc81a0bed",
-          "url": "https://static.crates.io/crates/tokio/1.53.1/download"
+          "sha256": "e95f91fcc7a621e8b030f6aa23c71fe9838ae2fb4d8118b75602a328f5144044",
+          "url": "https://static.crates.io/crates/tokio/1.53.2/download"
         }
       },
       "targets": [
@@ -24218,7 +24277,7 @@
           }
         }
       ],
-      "version": "1.53.1"
+      "version": "1.53.2"
     },
     "tokio-macros 2.7.2": {
       "common_attrs": {
@@ -24270,7 +24329,7 @@
             "target": "native_tls"
           },
           {
-            "id": "tokio 1.53.1",
+            "id": "tokio 1.53.2",
             "target": "tokio"
           }
         ],
@@ -24300,7 +24359,7 @@
       ],
       "version": "0.3.1"
     },
-    "tokio-rustls 0.26.5": {
+    "tokio-rustls 0.26.6": {
       "common_attrs": {
         "crate_features": [
           "ring",
@@ -24312,7 +24371,7 @@
             "target": "rustls"
           },
           {
-            "id": "tokio 1.53.1",
+            "id": "tokio 1.53.2",
             "target": "tokio"
           }
         ],
@@ -24329,8 +24388,8 @@
       "package_url": "https://github.com/rustls/tokio-rustls",
       "repository": {
         "Http": {
-          "sha256": "b0c85f2c3ef0b1cd58b36682f4b17aaa995f0e5db534d85692b4903abce21f67",
-          "url": "https://static.crates.io/crates/tokio-rustls/0.26.5/download"
+          "sha256": "c9cc2678c2cdd569ef8215e2afd7954ada2ae20b4fdd2c5fe6139a3b02d105db",
+          "url": "https://static.crates.io/crates/tokio-rustls/0.26.6/download"
         }
       },
       "targets": [
@@ -24341,7 +24400,7 @@
           }
         }
       ],
-      "version": "0.26.5"
+      "version": "0.26.6"
     },
     "tokio-util 0.7.19": {
       "common_attrs": {
@@ -24397,32 +24456,32 @@
               "target": "slab"
             },
             {
-              "id": "tokio 1.53.1",
+              "id": "tokio 1.53.2",
               "target": "tokio"
             }
           ],
           "selects": {
             "aarch64-apple-darwin": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
             "aarch64-unknown-linux-gnu": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
             "x86_64-unknown-linux-gnu": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ],
             "x86_64-unknown-nixos-gnu": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ]
@@ -24743,7 +24802,7 @@
             "target": "sync_wrapper"
           },
           {
-            "id": "tokio 1.53.1",
+            "id": "tokio 1.53.2",
             "target": "tokio"
           },
           {
@@ -25126,7 +25185,7 @@
             "target": "thiserror"
           },
           {
-            "id": "tokio 1.53.1",
+            "id": "tokio 1.53.2",
             "target": "tokio"
           },
           {
@@ -26630,7 +26689,7 @@
           "selects": {
             "cfg(unix)": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ]
@@ -26906,7 +26965,7 @@
           "selects": {
             "cfg(all(target_os = \"emscripten\", wasm_bindgen_unstable_tokio))": [
               {
-                "id": "tokio 1.53.1",
+                "id": "tokio 1.53.2",
                 "target": "tokio"
               }
             ]
@@ -27383,7 +27442,7 @@
             "target": "getrandom"
           },
           {
-            "id": "mac_address 1.1.8",
+            "id": "mac_address 1.2.0",
             "target": "mac_address"
           },
           {
@@ -27437,7 +27496,7 @@
             "target": "deltae"
           },
           {
-            "id": "lazy_static 1.5.0",
+            "id": "lazy_static 1.5.1",
             "target": "lazy_static"
           },
           {
@@ -27577,7 +27636,7 @@
             "target": "euclid"
           },
           {
-            "id": "lazy_static 1.5.0",
+            "id": "lazy_static 1.5.1",
             "target": "lazy_static"
           },
           {
@@ -29322,7 +29381,7 @@
             ],
             "cfg(any(target_os = \"freebsd\", target_os = \"netbsd\"))": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               }
             ]
@@ -29483,7 +29542,7 @@
         "edition": "2021",
         "proc_macro_deps": [
           {
-            "id": "yoke-derive 0.8.3",
+            "id": "yoke-derive 0.8.4",
             "target": "yoke_derive"
           }
         ]
@@ -29512,7 +29571,7 @@
       ],
       "version": "0.8.3"
     },
-    "yoke-derive 0.8.3": {
+    "yoke-derive 0.8.4": {
       "common_attrs": {
         "deps": [
           {
@@ -29544,8 +29603,8 @@
       "package_url": "https://github.com/unicode-org/icu4x",
       "repository": {
         "Http": {
-          "sha256": "33811428bee40dbceb6d545e95754741d17a6aef9a4849f0fd62e2ba4f412a78",
-          "url": "https://static.crates.io/crates/yoke-derive/0.8.3/download"
+          "sha256": "ec8ebde2db3681e8c9980cc27822030e68752690ddfa9473e739aeb4dbde6d71",
+          "url": "https://static.crates.io/crates/yoke-derive/0.8.4/download"
         }
       },
       "targets": [
@@ -29556,7 +29615,7 @@
           }
         }
       ],
-      "version": "0.8.3"
+      "version": "0.8.4"
     },
     "zbus 5.13.2": {
       "common_attrs": {
@@ -29653,7 +29712,7 @@
           "selects": {
             "cfg(unix)": [
               {
-                "id": "libc 0.2.189",
+                "id": "libc 0.2.190",
                 "target": "libc"
               },
               {
@@ -29692,7 +29751,7 @@
           "selects": {
             "cfg(any(target_os = \"macos\", windows))": [
               {
-                "id": "async-recursion 1.1.1",
+                "id": "async-recursion 1.2.0",
                 "target": "async_recursion"
               }
             ]
@@ -30841,7 +30900,7 @@
     "image 0.25.9",
     "jsonwebtoken 11.1.0",
     "keyring 4.2.0",
-    "lazy_static 1.5.0",
+    "lazy_static 1.5.1",
     "log 0.4.34",
     "ratatui 0.30.2",
     "reqwest 0.12.28",
@@ -30858,7 +30917,7 @@
     "tempfile 3.27.0",
     "thiserror 2.0.21",
     "thiserror-impl 2.0.21",
-    "tokio 1.53.1",
+    "tokio 1.53.2",
     "tower 0.5.3",
     "tracing 0.1.44",
     "turul-mcp-client 0.4.2",
