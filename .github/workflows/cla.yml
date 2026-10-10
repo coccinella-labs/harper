@@ -36,6 +36,11 @@ jobs:
           token: ${{ secrets.CLA_BOT_TOKEN }}
           path: cla-bot
 
+      - name: Install CLA bot dependencies
+        # The bot's node_modules are not committed, so without this the run
+        # fails at require("@actions/core") before any bot logic executes.
+        run: npm ci --prefix cla-bot
+
       - name: Copy signed.json to cla-signers.json
         run: |
           cp signed.json cla-signers.json
