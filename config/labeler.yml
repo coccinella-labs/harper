@@ -44,3 +44,47 @@
 "area: governance":
   - changed-files:
       - any-glob-to-any-file: ["GOVERNANCE.md", "MAINTAINERS.md"]
+
+# Priority labels mirror the roadmap tiers in #345.
+# Applied manually; listed here so label-sync.yml creates them.
+"priority: p1":
+  - changed-files:
+      - any-glob-to-any-file: []
+
+"priority: p2":
+  - changed-files:
+      - any-glob-to-any-file: []
+
+"priority: p3":
+  - changed-files:
+      - any-glob-to-any-file: []
+
+"priority: p4":
+  - changed-files:
+      - any-glob-to-any-file: []
+
+"priority: p5":
+  - changed-files:
+      - any-glob-to-any-file: []
+
+# Size labels for change-scope estimation.
+# Applied manually; listed here so label-sync.yml creates them.
+"size: xs":
+  - changed-files:
+      - any-glob-to-any-file: []
+
+"size: s":
+  - changed-files:
+      - any-glob-to-any-file: []
+
+"size: m":
+  - changed-files:
+      - any-glob-to-any-file: []
+
+"size: l":
+  - changed-files:
+      - any-glob-to-any-file: []
+
+"size: xl":
+  - changed-files:
+      - any-glob-to-any-file: []
