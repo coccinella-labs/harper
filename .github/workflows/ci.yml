@@ -19,8 +19,19 @@ on:
       - 'Cargo.toml'
       - 'Cargo.lock'
       - '.github/**'
+  merge_group:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'lib/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/**'
   schedule:
     - cron: '0 0 * * 0'  # Weekly dependency check
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'schedule' }}
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
@@ -63,7 +74,7 @@ jobs:
     - name: Cache Rust dependencies
       uses: Swatinem/rust-cache@v2
     - name: Run validation checks
-      run: bash scripts/validate.sh
+      run: bash scripts/validate.sh --ci
     - name: Run Clippy lints
       uses: ./.github/actions/lint
     - name: Check documentation

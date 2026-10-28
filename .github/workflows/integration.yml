@@ -17,6 +17,17 @@ on:
       - 'lib/**'
       - 'tests/**'
       - '.github/workflows/integration.yml'
+  merge_group:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'lib/**'
+      - 'tests/**'
+      - '.github/workflows/integration.yml'
+
+concurrency:
+  group: integration-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 permissions:
   contents: read

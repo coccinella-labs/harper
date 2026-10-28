@@ -48,7 +48,9 @@ jobs:
             const labelColors = {
               'area:': '1d76db',
               'risk:': 'd93f0b',
-              'needs-': 'fbca04'
+              'needs-': 'fbca04',
+              'priority:': 'b60205',
+              'size:': '1d76db',
             };
 
             const labelDescriptions = {
@@ -61,7 +63,17 @@ jobs:
               'area: ci': 'CI/CD changes',
               'area: governance': 'Governance changes',
               'risk: high': 'High risk changes',
-              'needs-design-review': 'Requires design review'
+              'needs-design-review': 'Requires design review',
+              'priority: p1': 'CI and cross-platform reliability',
+              'priority: p2': 'Routing and execution quality',
+              'priority: p3': 'Repository-aware authoring',
+              'priority: p4': 'Codebase investigation depth',
+              'priority: p5': 'Tooling and ecosystem maturity',
+              'size: xs': 'Extra-small change',
+              'size: s': 'Small change',
+              'size: m': 'Medium change',
+              'size: l': 'Large change',
+              'size: xl': 'Extra-large change',
             };
 
             for (const labelName of labels) {

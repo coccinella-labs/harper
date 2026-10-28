@@ -17,6 +17,8 @@ PASSED_STEPS=0
 WARNED_STEPS=0
 CURRENT_STEP=""
 
+CI_MODE=false
+
 print_banner() {
     echo
 
@@ -394,40 +396,61 @@ print_summary() {
 main() {
     check_project_root
 
+    if [ "${1:-}" = "--ci" ]; then
+        CI_MODE=true
+        TOTAL_STEPS=7
+    else
+        TOTAL_STEPS=14
+    fi
+
     print_banner
 
     print_status "INFO" "Starting validation checks..."
 
-    run_required_step 1 "Rust compilation check" \
-        "Rust compilation failed" \
-        "Run 'cargo check --workspace' for details" \
-        cargo check --workspace --quiet
+    local _step=0
 
-    run_required_step 2 "Clippy linter" \
-        "Clippy reported issues that need attention" \
-        "Run 'cargo clippy --all-targets --all-features --workspace -- -A clippy::pedantic -D warnings' for details" \
-        cargo clippy --all-targets --all-features --workspace \
-        --quiet -- -A clippy::pedantic -D warnings
+    if [ "$CI_MODE" = false ]; then
+        _step=$((_step + 1))
+        run_required_step "$_step" "Rust compilation check" \
+            "Rust compilation failed" \
+            "Run 'cargo check --workspace' for details" \
+            cargo check --workspace --quiet
+    fi
 
-    run_required_step 3 "Formatting check" \
+    if [ "$CI_MODE" = false ]; then
+        _step=$((_step + 1))
+        run_required_step "$_step" "Clippy linter" \
+            "Clippy reported issues that need attention" \
+            "Run 'cargo clippy --all-targets --all-features --workspace -- -A clippy::pedantic -D warnings' for details" \
+            cargo clippy --all-targets --all-features --workspace \
+            --quiet -- -A clippy::pedantic -D warnings
+    fi
+
+    _step=$((_step + 1))
+    run_required_step "$_step" "Formatting check" \
         "Code formatting issues found" \
         "Run 'cargo fmt --all' to fix formatting" \
         cargo fmt --all -- --check
 
-    run_required_step 4 "Workspace tests" \
-        "Workspace tests failed" \
-        "Run 'cargo test --workspace' for details" \
-        cargo test --workspace --quiet
+    if [ "$CI_MODE" = false ]; then
+        _step=$((_step + 1))
+        run_required_step "$_step" "Workspace tests" \
+            "Workspace tests failed" \
+            "Run 'cargo test --workspace' for details" \
+            cargo test --workspace --quiet
+    fi
 
+    _step=$((_step + 1))
     echo
-    print_status "INFO" "[5/$TOTAL_STEPS] Security audit"
+    print_status "INFO" "[${_step}/$TOTAL_STEPS] Security audit"
 
     if ! check_cargo_audit; then
         exit 1
     fi
 
+    _step=$((_step + 1))
     echo
-    print_status "INFO" "[6/$TOTAL_STEPS] Large file check"
+    print_status "INFO" "[${_step}/$TOTAL_STEPS] Large file check"
 
     if check_large_files; then
         print_status "PASS" "No large files found"
@@ -436,47 +459,59 @@ main() {
         exit 1
     fi
 
+    _step=$((_step + 1))
     echo
-    print_status "INFO" "[7/$TOTAL_STEPS] Sensitive file check"
+    print_status "INFO" "[${_step}/$TOTAL_STEPS] Sensitive file check"
     check_sensitive_files
 
+    _step=$((_step + 1))
     echo
-    print_status "INFO" "[8/$TOTAL_STEPS] YAML validation"
+    print_status "INFO" "[${_step}/$TOTAL_STEPS] YAML validation"
 
     if ! check_yaml; then
         exit 1
     fi
 
+    _step=$((_step + 1))
     echo
-    print_status "INFO" "[9/$TOTAL_STEPS] TODO/FIXME/XXX scan"
+    print_status "INFO" "[${_step}/$TOTAL_STEPS] TODO/FIXME/XXX scan"
     check_todos
 
-    run_required_step 10 "Documentation build" \
-        "Documentation build failed" \
-        "Run 'cargo doc --no-deps --workspace' for details" \
-        cargo doc --no-deps --workspace --quiet
+    if [ "$CI_MODE" = false ]; then
+        _step=$((_step + 1))
+        run_required_step "$_step" "Documentation build" \
+            "Documentation build failed" \
+            "Run 'cargo doc --no-deps --workspace' for details" \
+            cargo doc --no-deps --workspace --quiet
+    fi
 
+    _step=$((_step + 1))
     echo
-    print_status "INFO" "[11/$TOTAL_STEPS] cargo-deny policy check"
+    print_status "INFO" "[${_step}/$TOTAL_STEPS] cargo-deny policy check"
 
     if ! check_cargo_deny; then
         exit 1
     fi
 
-    run_optional_step 12 "Workspace benchmarks" \
-        check_benchmarks
+    if [ "$CI_MODE" = false ]; then
+        _step=$((_step + 1))
+        run_optional_step "$_step" "Workspace benchmarks" \
+            check_benchmarks
 
-    run_optional_step 13 "Integration tests" \
-        check_integration_tests
+        _step=$((_step + 1))
+        run_optional_step "$_step" "Integration tests" \
+            check_integration_tests
 
-    run_required_step 14 "Release build" \
-        "Release build failed" \
-        "Run 'cargo build --release --workspace' for details" \
-        cargo build --release --workspace --quiet
+        _step=$((_step + 1))
+        run_required_step "$_step" "Release build" \
+            "Release build failed" \
+            "Run 'cargo build --release --workspace' for details" \
+            cargo build --release --workspace --quiet
 
-    print_status \
-        "PASS" \
-        "Release build successful (binary size: $(release_binary_size) bytes)"
+        print_status \
+            "PASS" \
+            "Release build successful (binary size: $(release_binary_size) bytes)"
+    fi
 
     print_summary
 }
