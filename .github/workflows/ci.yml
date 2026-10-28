@@ -74,7 +74,7 @@ jobs:
     - name: Cache Rust dependencies
       uses: Swatinem/rust-cache@v2
     - name: Run validation checks
-      run: bash scripts/validate.sh
+      run: bash scripts/validate.sh --ci
     - name: Run Clippy lints
       uses: ./.github/actions/lint
     - name: Check documentation
