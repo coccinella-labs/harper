@@ -6,9 +6,10 @@ This directory contains all automation that runs in GitHub Actions for the Harpe
 
 | Workflow | File | What it does | Key trigger(s) |
 | --- | --- | --- | --- |
-| Rulesets | `apply-rulesets.yml` | Applies branch ruleset definitions from `.github/rulesets/*.json` to GitHub. Edit `main-branch-protection.json` to change rules; the workflow syncs them on push. | Push to `main` touching rulesets, manual dispatch |
+| Rulesets | `apply-rulesets.yml` | Applies branch ruleset definitions from `.github/rulesets/*.json` to GitHub. Edits to `main-protection.json` or `main-merge-queue.json` change rules; the workflow syncs them on push. | Push to `main` touching rulesets, manual dispatch |
 | Project | `add-pr-to-project.yml` | Adds opened, reopened, edited, synchronized, and ready-for-review PRs to the Harper organization project at `https://github.com/orgs/coccinella-labs/projects/10`. Project item creation runs through the Harper app token with organization project access. | PR target events |
 | Milestone | `assign-pr-milestone.yml` | Assigns new PRs to `Maintenance`, `Near-term`, or `Long-term` from title and labels. Milestone edits run through the Harper app token. | PR target events |
+| Auto-Assign Reviewer | `auto-assign-reviewer.yml` | Requests the other org admin as a reviewer when a PR is opened, so `bniladridas` and `coccinella-admin` always get cross-review on each other's pull requests. | PR opened |
 | Auto Merge | `auto-merge.yml` | Three jobs via `coccinella-labs/auto-merge@v1`: `auto-merge` enables GitHub's built-in auto-merge (waits for `CI (ubuntu-latest)` + 1 review); `auto-merge-now` merges immediately via `BYPASS_TOKEN` bypassing ruleset checks; `cancel-auto-merge` disables queued auto-merge when the `auto-merge` label is removed. PR state changes run through the Harper app token. | `labeled`/`unlabeled`/PR events |
 | Bazel | `build-bazel.yml` | Builds `:harper_bin` with Bazel on Linux and macOS, plus a scoped Windows smoke lane that builds `//lib/harper-ui:harper_ui`, runs `//lib/harper-core:harper_core_test`, checks the UI artifact, and dumps `harper_ui` params on failure. See `docs/development/bazel-windows-debugging.md` for the failure-analysis cookbook. | Push/PR to `main`, Bazel branches |
 | Bazel Smoke | `bazel-smoke.yml` | Runs `bazel test //...` after merges and daily to catch dependency drift outside PRs. | Push to `main`, daily cron, manual dispatch |
@@ -44,7 +45,7 @@ This directory contains all automation that runs in GitHub Actions for the Harpe
 | Rust Fix | `rust-auto-fix.yml` | Applies automated `cargo fmt`/`clippy --fix` patches via `coccinella-labs/rust-fix@v1` when `/rust-fix` comment is confirmed with `/confirm`. | Issue comment on PRs |
 | Cancel Runs | `cancel-runs.yml` | Cancels in-progress runs when `/cancel-runs` is commented on PRs via `coccinella-labs/cancel@v1`. Also triggers on `cancel-runs` label. | Issue comment on PRs, `cancel-runs` label |
 | Lockfiles | `update-lockfiles.yml` | Runs `cargo update` + `CARGO_BAZEL_REPIN=true bazel build :harper_bin` (repins `cargo-bazel-lock.json`), opens PR. PR creation runs through the Harper app token. Generated dependency facts go to a single sticky `<!-- lockfile-summary -->` comment that `scripts/lockfile_summary.py` rewrites in place on every run that changes the lockfiles, so the summary cannot lag the diff it describes. The PR body stays hand-maintained, because `create-pull-request` overwrites title/body whenever it updates an existing PR. | Weekly cron (Sunday midnight UTC), manual dispatch, push to `cargo-lock-update` |
-| Homebrew | `update-homebrew-tap.yml` | Manually updates `coccinella-labs/homebrew-tap/Formula/harper-ai.rb` for a published `harper-*` release by downloading the release tarball, recomputing sha256, patching the formula, and opening a PR in the tap repo. Requires `HOMEBREW_TAP_TOKEN`. | Manual dispatch |
+| Homebrew | `update-homebrew-tap.yml` | Updates `coccinella-labs/homebrew-tap/Formula/harper-ai.rb` for a published release by downloading the release tarball, recomputing sha256, patching the formula, and opening a PR in the tap repo. Requires `HOMEBREW_TAP_TOKEN`. | Release published, manual dispatch |
 | Windows Packages | `windows-packages.yml` | Generates Scoop and winget manifests from a published Windows release artifact and uploads them for package-channel submission. | `harper-[0-9]*` tag push, manual dispatch |
 | VS Code Extension | `vscode-extension.yml` | Packages the Harper Review VS Code extension and uploads the `.vsix` artifact for validation. | PRs touching extension files, manual dispatch |
 | Website | `website.yml` | Builds and deploys the website bundle to GitHub Pages. | Push to `main` touching `website/**`, manual dispatch |
@@ -59,16 +60,34 @@ This directory contains all automation that runs in GitHub Actions for the Harpe
 | --- | --- | --- |
 | `auto-merge` | green | Enables GitHub's built-in auto-merge; waits for `CI (ubuntu-latest)` and 1 approving review before squash-merging. Remove the label to cancel a queued merge. |
 | `auto-merge-now` | red | Merges immediately via `BYPASS_TOKEN`, bypassing ruleset status-check and review requirements. Use with caution. |
+| `priority: p0` through `priority: p5` | red | Mirrors the roadmap priority tiers in #345. Managed by `label-sync.yml`; applied manually to issues and PRs. |
+| `size: xs` through `size: xl` | blue | Change-scope estimation, aligned with common project-tracking scales. Managed by `label-sync.yml`; applied manually. |
 
-## Branch Ruleset
+## Branch Rulesets
 
-The `main` branch is protected by the **Main Branch Protection** ruleset (ID `11608827`). Its definition lives in `.github/rulesets/main-branch-protection.json` and is applied automatically by `apply-rulesets.yml` on every push that touches it. To change a rule, edit the JSON and merge to `main`.
+The `main` branch is governed by two active rulesets, both applied automatically by `apply-rulesets.yml` on every push to `main` that touches `.github/rulesets/`:
 
-Current rules:
+1. **main-protection** (ID `26004025`): definition in `.github/rulesets/main-protection.json`. Enforces branch protection.
+2. **main-merge-queue** (ID `26003783`): definition in `.github/rulesets/main-merge-queue.json`. Enforces the merge queue.
+
+To change a rule, edit the JSON file and merge to `main`.
+
+### main-protection rules
+
 - No deletion or force-push to `main`
 - Squash or rebase merge only
 - 1 approving review required
 - `CI (ubuntu-latest)` must pass
+- Bypass: OrganizationAdmin (always)
+
+### main-merge-queue rules
+
+- Merge queue enabled with SQUASH merge method
+- Grouping strategy: ALLGREEN
+- Wait duration: 5 minutes (`min_entries_to_merge_wait_minutes`)
+- Max 5 entries to build and merge
+- Check response timeout: 60 minutes
+- No bypass actors
 - Bypass: OrganizationAdmin (always)
 
 ## Editing Guidelines
@@ -77,8 +96,9 @@ Current rules:
 2. **Document non-obvious behavior.** If a workflow has unusual permissions, secrets, or environment requirements (for example, the lockfile job needing Bazel cache access), add comments in the YAML.
 3. **Use the Harper app token for repo mutations.** Prefer `actions/create-github-app-token@v2` plus `HARPER_APP_ID` / `HARPER_APP_PRIVATE_KEY` when a workflow edits PRs, labels, or other repo metadata.
 4. **Test locally when possible.** For shell steps that don't rely on GitHub-specific context, run them via `act` or a local script before committing.
-5. **Respect required checks.** `pr-checks.yml` gates merges—update its `workflow_run` dependencies whenever you add/remove a workflow that should block PRs.
+5. **Respect required checks.** `pr-checks.yml` gates merges. Update its `workflow_run` dependencies whenever you add/remove a workflow that should block PRs.
 6. **Keep triggers minimal.** Avoid running heavy jobs on every push; scope `paths:` or branch filters when applicable.
+7. **Cancel stale PR runs.** Add a `concurrency` block to new workflows that run on pull requests, so force pushes and new commits cancel in-progress runs. Use `cancel-in-progress: ${{ github.event_name != 'schedule' }}` to preserve scheduled runs.
 
 ## Troubleshooting
 
@@ -88,6 +108,3 @@ Current rules:
 - **Sandbox permissions (Codex/CI reproductions):** Some local sandbox sessions can mark `.git/refs/heads` with macOS provenance flags, blocking branch creation. If you see "Operation not permitted" writing inside `.git`, create/push branches from a fresh session or your host machine; the issue is environmental, not workflow-related.
 
 Feel free to expand this file with additional details (matrix descriptions, secrets used, etc.) as workflows evolve.
-
-## Last Updated
-2026-09-26

@@ -25,6 +25,10 @@ on:
       - 'docker/docker-compose.yml'
   workflow_dispatch:
 
+concurrency:
+  group: build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'schedule' }}
+
 env:
   CARGO_TERM_COLOR: always
 

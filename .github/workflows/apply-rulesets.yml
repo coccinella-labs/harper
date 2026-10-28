@@ -21,12 +21,22 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Apply main-branch-protection ruleset
+      - name: Apply main-protection ruleset
         run: |
-          RULESET_ID=11608827
+          RULESET_ID=26004025
           gh api repos/${{ github.repository }}/rulesets/$RULESET_ID \
             --method PUT \
             --header "Accept: application/vnd.github+json" \
-            --input .github/rulesets/main-branch-protection.json
+            --input .github/rulesets/main-protection.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.BYPASS_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Apply main-merge-queue ruleset
+        run: |
+          RULESET_ID=26003783
+          gh api repos/${{ github.repository }}/rulesets/$RULESET_ID \
+            --method PUT \
+            --header "Accept: application/vnd.github+json" \
+            --input .github/rulesets/main-merge-queue.json
         env:
           GITHUB_TOKEN: ${{ secrets.BYPASS_TOKEN || secrets.GITHUB_TOKEN }}

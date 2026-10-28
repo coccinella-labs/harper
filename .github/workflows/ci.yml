@@ -21,6 +21,9 @@ on:
       - '.github/**'
   schedule:
     - cron: '0 0 * * 0'  # Weekly dependency check
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'schedule' }}
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
