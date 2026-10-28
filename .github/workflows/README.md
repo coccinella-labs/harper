@@ -11,16 +11,16 @@ This directory contains all automation that runs in GitHub Actions for the Harpe
 | Milestone | `assign-pr-milestone.yml` | Assigns new PRs to `Maintenance`, `Near-term`, or `Long-term` from title and labels. Milestone edits run through the Harper app token. | PR target events |
 | Auto-Assign Reviewer | `auto-assign-reviewer.yml` | Requests the other org admin as a reviewer when a PR is opened, so `bniladridas` and `coccinella-admin` always get cross-review on each other's pull requests. | PR opened |
 | Auto Merge | `auto-merge.yml` | Three jobs via `coccinella-labs/auto-merge@v1`: `auto-merge` enables GitHub's built-in auto-merge (waits for `CI (ubuntu-latest)` + 1 review); `auto-merge-now` merges immediately via `BYPASS_TOKEN` bypassing ruleset checks; `cancel-auto-merge` disables queued auto-merge when the `auto-merge` label is removed. PR state changes run through the Harper app token. | `labeled`/`unlabeled`/PR events |
-| Bazel | `build-bazel.yml` | Builds `:harper_bin` with Bazel on Linux and macOS, plus a scoped Windows smoke lane that builds `//lib/harper-ui:harper_ui`, runs `//lib/harper-core:harper_core_test`, checks the UI artifact, and dumps `harper_ui` params on failure. See `docs/development/bazel-windows-debugging.md` for the failure-analysis cookbook. | Push/PR to `main`, Bazel branches |
+| Bazel | `build-bazel.yml` | Builds `:harper_bin` with Bazel on Linux and macOS, plus a scoped Windows smoke lane that builds `//lib/harper-ui:harper_ui`, runs `//lib/harper-core:harper_core_test`, checks the UI artifact, and dumps `harper_ui` params on failure. See `docs/development/bazel-windows-debugging.md` for the failure-analysis cookbook. | Push/PR/merge_group to `main`, Bazel branches |
 | Bazel Smoke | `bazel-smoke.yml` | Runs `bazel test //...` after merges and daily to catch dependency drift outside PRs. | Push to `main`, daily cron, manual dispatch |
 | Benchmarks | `benchmarks.yml` | Runs `cargo bench` nightly and stores results as artifacts. | Daily cron, manual dispatch |
-| Integration | `integration.yml` | Executes `cargo test -- --include-ignored` against real services (requires secrets). | PRs touching app code, manual dispatch (with environment input) |
+| Integration | `integration.yml` | Executes `cargo test -- --include-ignored` against real services (requires secrets). | PRs/merge_group touching app code, manual dispatch (with environment input) |
 | Install Script | `install-script.yml` | Dry-runs `scripts/install-harper.sh` on Linux, macOS, and Windows to validate platform-to-asset mapping. | PRs touching installer files, manual dispatch |
 | Package | `package-test.yml` | Calls `coccinella-labs/release-assets` in preflight mode to build, package, and smoke-test Harper release artifacts for Linux x86_64, Linux aarch64, macOS x86_64, macOS aarch64, and Windows x86_64 without publishing them. | Tag push (`harper-*`), manual dispatch |
 | Post-Merge CI | `post-auto-merge-ci.yml` | Re-runs fmt/clippy/tests on `main` after Auto Merge completes; also locks the merged PR via `gh pr lock`. PR lookups and lock actions run through the Harper app token. | Completion of Auto Merge workflow |
 | PR Description | `normalize-pr-description.yml` | Rewrites `## Summary`/`## Testing` bullet-style PR bodies into a single paragraph with backtick-wrapped technical terms via `coccinella-labs/prune@v1`. Skips forks and dependabot. | PR opened/edited/ready_for_review |
-| Build | `build.yml` | Builds Docker image and runs e2e tests; publishes to GHCR/Docker Hub on merge to `main`. | Push/PR to `main` touching docker files, workflow dispatch |
-| CI | `ci.yml` | Runs on `main`/`develop`: validation checks, clippy, docs, unit+integration tests, release build, security audit, e2e tests. Also runs a weekly audit and coverage upload. | Push/PR to `main`/`develop`, weekly cron |
+| Build | `build.yml` | Builds Docker image and runs e2e tests; publishes to GHCR/Docker Hub on merge to `main`. | Push/PR/merge_group to `main` touching docker files, workflow dispatch |
+| CI | `ci.yml` | Runs on `main`/`develop`: validation checks (`scripts/validate.sh --ci` mode), clippy (SARIF), docs, unit+integration tests, release build, security audit, e2e tests. Also runs a weekly audit and coverage upload. | Push/PR/merge_group to `main`/`develop`, weekly cron |
 | CLA | `cla.yml` | Enforces the Contributor License Agreement via cla-bot. PR and issue writes run through the Harper app token. | PR opened/synchronized |
 | CodeQL | `codeql.yml` | Performs CodeQL static analysis on Rust (security scanning). | Push/PR to `main`, weekly cron |
 | Dependency Review | `dependency-review.yml` | Uses GitHub's dependency-review action on PRs. | PR events |
@@ -77,7 +77,7 @@ To change a rule, edit the JSON file and merge to `main`.
 - No deletion or force-push to `main`
 - Squash or rebase merge only
 - 1 approving review required
-- `CI (ubuntu-latest)` must pass
+- `CI (ubuntu-latest)`, `CI (macos-latest)`, and `CI (windows-latest)` must pass
 - Bypass: OrganizationAdmin (always)
 
 ### main-merge-queue rules
@@ -86,7 +86,7 @@ To change a rule, edit the JSON file and merge to `main`.
 - Grouping strategy: ALLGREEN
 - Wait duration: 5 minutes (`min_entries_to_merge_wait_minutes`)
 - Max 5 entries to build and merge
-- Check response timeout: 60 minutes
+- Check response timeout: 120 minutes
 - No bypass actors
 - Bypass: OrganizationAdmin (always)
 
