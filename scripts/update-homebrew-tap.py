@@ -30,11 +30,10 @@ def main() -> int:
     args = parser.parse_args()
 
     release_tag = args.release_tag
-    prefix = "harper-"
-    if not release_tag.startswith(prefix):
-        raise SystemExit(f"release tag must start with '{prefix}': {release_tag}")
-
-    version = release_tag[len(prefix) :]
+    match = re.match(r'^harper-(?:workspace-)?(.+)$', release_tag)
+    if not match:
+        raise SystemExit(f"release tag must start with 'harper-' or 'harper-workspace-': {release_tag}")
+    version = match.group(1)
     tarball_url = (
         f"https://github.com/coccinella-labs/harper/archive/refs/tags/{release_tag}.tar.gz"
     )

@@ -2,19 +2,22 @@
 name: Homebrew
 
 "on":
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Installable Harper release tag"
+        description: "Installable Harper release tag (e.g. harper-workspace-0.25.0)"
         required: true
         type: string
+
+permissions:
+  contents: read
 
 jobs:
   update-homebrew-tap:
     name: Homebrew
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     env:
       TAP_REPO: coccinella-labs/homebrew-tap
       FORMULA_PATH: Formula/harper-ai.rb
@@ -26,24 +29,33 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          case "${{ github.event.inputs.release_tag }}" in
-            harper-*) ;;
+          if [ -n "${{ github.event.inputs.release_tag }}" ]; then
+            release_tag="${{ github.event.inputs.release_tag }}"
+          else
+            release_tag="${{ github.event.release.tag_name }}"
+          fi
+          case "$release_tag" in
+            harper-*|harper-workspace-*) ;;
             *)
-              echo "release_tag must start with harper-"
+              echo "release_tag must start with harper- or harper-workspace-"
               exit 1
               ;;
           esac
+          echo "release_tag=$release_tag" >> "$GITHUB_ENV"
 
       - name: Download release tarball and compute sha256
         id: tarball
         shell: bash
         run: |
           set -euo pipefail
-          release_tag="${{ github.event.inputs.release_tag }}"
+          release_tag="${RELEASE_TAG}"
+          version="${release_tag#harper-}"
+          case "$version" in
+            workspace-*) version="${version#workspace-}" ;;
+          esac
           tarball_url="https://github.com/coccinella-labs/harper/archive/refs/tags/${release_tag}.tar.gz"
           curl -L "$tarball_url" -o harper-release.tar.gz
           sha256=$(sha256sum harper-release.tar.gz | awk '{print $1}')
-          version="${release_tag#harper-}"
           echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
@@ -60,7 +72,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/update-homebrew-tap.py \
-            --release-tag "${{ github.event.inputs.release_tag }}" \
+            --release-tag "${RELEASE_TAG}" \
             --sha256 "${{ steps.tarball.outputs.sha256 }}" \
             --formula-path "homebrew-tap/$FORMULA_PATH"
 
@@ -112,11 +124,11 @@ jobs:
           cat > pr-body.md <<EOF
           ## Changes
           - update \`harper-ai\` to \`${version}\`
-          - point the formula at \`${{ github.event.inputs.release_tag }}\`
+          - point the formula at \`${RELEASE_TAG}\`
           - refresh the source tarball sha256
 
           ## Validation
-          - downloaded the \`${{ github.event.inputs.release_tag }}\` source tarball
+          - downloaded the \`${RELEASE_TAG}\` source tarball
           - recomputed sha256 in workflow
           - patched \`Formula/harper-ai.rb\`
           EOF
@@ -138,4 +150,4 @@ jobs:
       - name: Report no-op
         if: steps.diff.outputs.changed != 'true'
         shell: bash
-        run: echo "Formula already matches ${{ github.event.inputs.release_tag }}"
+        run: echo "Formula already matches ${RELEASE_TAG}"
