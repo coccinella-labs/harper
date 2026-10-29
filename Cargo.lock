@@ -1815,7 +1815,7 @@ dependencies = [
 
 [[package]]
 name = "harper-core"
-version = "0.24.1"
+version = "0.24.2"
 dependencies = [
  "aes",
  "arboard",
@@ -1938,7 +1938,7 @@ dependencies = [
 
 [[package]]
 name = "harper-workspace"
-version = "0.25.1"
+version = "0.25.2"
 dependencies = [
  "assert_cmd",
  "criterion",
