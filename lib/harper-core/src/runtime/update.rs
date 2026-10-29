@@ -439,7 +439,9 @@ fn extract_from_zip(bytes: &[u8], executable_name: &str) -> crate::HarperResult<
         let mut file = archive.by_index(index).map_err(|e| {
             crate::HarperError::Validation(format!("Failed to read zip entry: {}", e))
         })?;
-        let path = PathBuf::from(file.name());
+        let path = PathBuf::from(file.name().map_err(|e| {
+            crate::HarperError::Validation(format!("Failed to read zip entry name: {}", e))
+        })?.into_owned());
         if matches_executable_name(&path, executable_name) {
             let mut out = Vec::new();
             std::io::copy(&mut file, &mut out).map_err(|e| {
