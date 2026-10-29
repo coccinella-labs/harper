@@ -128,7 +128,7 @@ curl http://127.0.0.1:8081/api/sessions</code></pre>
 
                 <h3>Health response</h3>
                 <div class="code-wrapper">
-                    <pre><code>{"status":"ok","version":"0.20.1"}</code></pre>
+                    <pre><code>{"status":"ok","version":"<current version>"}</code></pre>
                 </div>
 
                 <h3>Sessions response</h3>
@@ -311,7 +311,7 @@ vsce package --out harper-review.vsix</code></pre>
                 <h4>Server not running</h4>
                 <div class="code-wrapper">
                     <pre><code>curl http://127.0.0.1:8081/health
-# {"status":"ok","version":"0.20.1"}</code></pre>
+# {"status":"ok","version":"<current version>"}</code></pre>
                     <button class="copy-btn"></button>
                 </div>
                 <p>If it fails, start the server: <code>cargo run -p harper-ui --bin harper</code></p>
