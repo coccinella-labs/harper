@@ -201,7 +201,16 @@ fn build_sandbox_exec_profile(config: &SandboxConfig, working_dir: &Path) -> Str
         "(allow file-read-metadata)".to_string(),
     ];
 
-    for system_path in ["/bin", "/usr", "/System", "/Library", "/dev/null"] {
+    // Homebrew's default prefix is architecture-dependent. Intel uses
+    // /usr/local (already covered by /usr); ARM uses /opt/homebrew.
+    for system_path in [
+        "/bin",
+        "/usr",
+        "/System",
+        "/Library",
+        "/dev/null",
+        "/opt/homebrew",
+    ] {
         sandbox_rules.push(format!("(allow file-read* (subpath \"{}\"))", system_path));
     }
 
@@ -368,6 +377,18 @@ mod tests {
             "(allow file-write* (subpath \"{}\"))",
             escaped_working_dir
         )));
+    }
+
+    #[test]
+    fn sandbox_exec_profile_covers_arm_homebrew_prefix() {
+        let config = SandboxConfig {
+            enabled: true,
+            ..Default::default()
+        };
+        let profile =
+            build_sandbox_exec_profile(&config, &std::env::current_dir().expect("current dir"));
+
+        assert!(profile.contains("(allow file-read* (subpath \"/opt/homebrew\"))"));
     }
 
     #[test]
